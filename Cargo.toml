@@ -1,0 +1,34 @@
+[package]
+name = "polytopia-sim"
+version = "0.1.0"
+edition = "2021"
+description = "Unofficial rules engine for The Battle of Polytopia: game rules, map generator, built-in AI, saves and replays"
+readme = "README.md"
+keywords = ["polytopia", "game-engine", "simulation", "strategy", "ai"]
+categories = ["games", "simulation", "command-line-utilities"]
+rust-version = "1.86"
+publish = false
+license = "MIT OR Apache-2.0"
+repository = "https://git.stackken.com/kenzim/polytopia-sim"
+homepage = "https://git.stackken.com/kenzim/polytopia-sim"
+exclude = ["/.github", "/python", "/tools"]
+default-run = "polytopia-sim"
+
+[dependencies]
+mimalloc = { version = "0.1.52", optional = true }
+
+[features]
+# Check every unit-grid lookup against a scan of the unit list (panics on a stale grid).
+grid_check = []
+# Recompute every route-cache hit and panic if it differs from the cached flags.
+route_check = []
+# Use mimalloc as the global allocator (about 5% more playouts per second than the system allocator, same results).
+# Opt-in for search binaries: `cargo build --profile search --features mimalloc`.
+mimalloc = ["dep:mimalloc"]
+
+# Search binaries: `cargo build --profile search` (output in target/search/). Full link-time optimisation, which
+# makes playouts faster than `release`, with the same results. Kept out of `release` so test builds stay quick.
+[profile.search]
+inherits = "release"
+lto = "fat"
+codegen-units = 1

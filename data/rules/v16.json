@@ -1,0 +1,78 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 16,
+  "from": 17,
+  "changes": {
+    "units": {
+      "swordsman": {"unit_abilities": ["dash", "fortify"]},
+      "tridention": {"health": 150},
+      "mooni": {"defence": 20, "unit_abilities": ["freezearea", "skate"]},
+      "crab": {"defence": 40, "movement": 1},
+      "gaami": {"defence": 40, "unit_abilities": ["autofreeze", "freezearea"]},
+      "exida": {"movement": 1, "unit_abilities": ["poison", "splash"]},
+      "cloak_boat": {"health": 0},
+      "pirate": {"cost": 2, "health": 10},
+      "bombership": null,
+      "scoutship": null,
+      "transportship": null,
+      "rammership": null,
+      "juggernaut": null
+    },
+    "tribes": {
+      "aimo": {"starting_resource": null},
+      "aquarion": {"starting_unit": "warrior", "starting_tech": ["basic"], "starting_resource": null},
+      "bardur": {"resource_modifier": {"fruit": 1.5, "game": 1.0}, "terrain_modifier": null, "starting_resource": null},
+      "elyrion": {"improvement_overrides": {"burnforest": "nullbuilding"}, "starting_resource": null},
+      "luxidoor": {"starting_resource": null},
+      "quetzali": {"starting_resource": null},
+      "vengir": {"starting_resource": null},
+      "yadakk": {"starting_resource": null},
+      "zebasi": {"starting_resource": null},
+      "polaris": {"tech_overrides": {"sailing": "frostwork", "aquaculture": null, "fishing": null}, "improvement_overrides": {"customshouse": "icebank", "market": null}, "starting_resource": null},
+      "cymanti": {"tech_overrides": {"sailing": "hydrology", "aquaculture": null, "fishing": null, "navigation": null}, "improvement_overrides": {"cultivate": "nullbuilding", "customshouse": "clathrus", "harvestspores": "nullbuilding", "bridge": null, "market": null}, "starting_resource": null}
+    },
+    "techs": {
+      "basic": {"unit_unlocks": ["giant", "bunny", "scout", "boat", "warrior", "babydragon", "firedragon", "pirate", "dagger"]},
+      "roads": {"improvement_unlocks": ["road"], "task_unlocks": ["network"]},
+      "trade": {"improvement_unlocks": ["customshouse"]},
+      "fishing": {"tech_unlocks": ["sailing", "whaling"], "improvement_unlocks": ["fishing"], "movement_unlocks": null},
+      "whaling": {"idx": 11, "cost": 2, "tech_unlocks": ["aquatism"], "improvement_unlocks": ["whalehunting"]},
+      "sailing": {"improvement_unlocks": ["port"], "unit_unlocks": ["ship"], "movement_unlocks": {"water": 2, "ocean": null}},
+      "navigation": {"unit_unlocks": ["battleship"], "task_unlocks": ["explorer"], "movement_unlocks": {"ocean": 1}, "improvement_unlocks": null},
+      "frostwork": {"cost": 2, "tech_unlocks": ["navigation"], "improvement_unlocks": ["outpost"]},
+      "polarwarfare": {"unit_unlocks": ["battlesled", "icefortress"], "task_unlocks": ["explorer"], "improvement_unlocks": null},
+      "oceanology": {"unit_unlocks": ["raychi"], "task_unlocks": ["explorer"], "improvement_unlocks": null},
+      "hydrology": {"tech_unlocks": ["oceanology"]},
+      "aquaculture": null,
+      "fishingsimple": null,
+      "sledding": null,
+      "icefishing": null,
+      "pescetism": null
+    },
+    "improvements": {
+      "road": {"cost": 2, "improvement_abilities": ["expand"]},
+      "customshouse": {"work": 2, "adjacency_requirements": [{"improvement": "port"}], "adjacency_improvements": [{"improvement": "port"}]},
+      "farm": {"terrain_requirements": [{"resource": "crop"}]},
+      "port": {"cost": 10, "rewards": [{"population": 2}]},
+      "lumberhut": {"cost": 2},
+      "whalehunting": {"improvement_abilities": ["consumed"]},
+      "enchantwhale": {"improvement_abilities": ["consumed"]},
+      "icebank": {"work": 3},
+      "nullbuilding": {"idx": 44, "hidden": true, "max_level": 0, "should_suggest_unlock": false},
+      "cultivate": {"idx": 45, "cost": 2, "improvement_abilities": ["consumed"], "creates": [{"resource": "crop"}], "terrain_requirements": [{"resource": "spores"}]},
+      "starfishing": null,
+      "lighthouse": null,
+      "bridge": null,
+      "aquafarm": null,
+      "market": null
+    },
+    "resources": {
+      "starfish": null,
+      "aquacrop": null
+    },
+    "tasks": {
+      "explorer": {"idx": 7, "improvement_unlocks": ["monument7"]},
+      "explorelighthouses": null
+    }
+  }
+}

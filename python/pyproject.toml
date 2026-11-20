@@ -1,0 +1,19 @@
+[build-system]
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
+
+[project]
+name = "polytopia-sim"
+description = "Python bindings for the polytopia-sim rules engine (an unofficial fan project)"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.22"]
+license = { text = "MIT OR Apache-2.0" }
+classifiers = ["Programming Language :: Rust", "Programming Language :: Python :: 3", "Topic :: Games/Entertainment :: Turn Based Strategy"]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.maturin]
+features = []

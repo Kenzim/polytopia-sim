@@ -1,0 +1,7 @@
+# Build output
+target/
+__pycache__/
+
+# Saves and anything derived from them hold the user's account id and name: never commit
+*.state
+*.bin

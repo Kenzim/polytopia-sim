@@ -1,0 +1,13 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 14,
+  "from": 15,
+  "changes": {
+    "techs": {
+      "meditation": {"ability_unlocks": null}
+    },
+    "improvements": {
+      "port": {"improvement_abilities": null}
+    }
+  }
+}

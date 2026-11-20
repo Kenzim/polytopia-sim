@@ -1,0 +1,24 @@
+[package]
+name = "bench-ours"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+polytopia-sim = { path = "../../.." }
+
+[features]
+mimalloc = ["polytopia-sim/mimalloc"]
+
+# Cargo's default release profile, as `cargo build --release` gives.
+[profile.release]
+opt-level = 3
+
+# The tuned build, the same for both engines (run.sh adds mimalloc and profile-guided optimisation).
+[profile.tuned]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+overflow-checks = false
+
+[workspace]

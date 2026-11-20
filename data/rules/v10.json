@@ -1,0 +1,21 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 10,
+  "from": 11,
+  "changes": {
+    "units": {
+      "mindbender": {"unit_abilities": ["heal", "convert"]},
+      "kiton": {"health": 200},
+      "cloak": {"cost": 5},
+      "cloak_boat": {"unit_abilities": ["carry", "swim", "hide", "sneak", "infiltrate"]}
+    },
+    "techs": {
+      "chivalry": {"improvement_unlocks": ["burnforest"], "ability_unlocks": null},
+      "construction": {"improvement_unlocks": ["windmill"], "ability_unlocks": ["destroy"]}
+    },
+    "improvements": {
+      "windmill": {"growth_rewards": [{"score": 0, "population": 2}]},
+      "forge": {"work": 1, "growth_rewards": null}
+    }
+  }
+}

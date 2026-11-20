@@ -1,0 +1,13 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 26,
+  "from": 27,
+  "changes": {
+    "tribes": {
+      "cymanti": {"skins": null}
+    },
+    "skins": {
+      "cute": null
+    }
+  }
+}

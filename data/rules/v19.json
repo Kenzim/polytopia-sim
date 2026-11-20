@@ -1,0 +1,103 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 19,
+  "from": 20,
+  "changes": {
+    "units": {
+      "warrior": {"unit_abilities": ["dash", "fortify"]},
+      "rider": {"unit_abilities": ["dash", "escape", "fortify"]},
+      "knight": {"unit_abilities": ["dash", "persist", "fortify"]},
+      "defender": {"unit_abilities": ["fortify"]},
+      "ship": {"idx": 6, "hidden": true, "cost": 5, "health": 0, "defence": 20, "movement": 3, "weapon": 3, "range": 2, "attack": 20, "unit_abilities": ["dash", "carry", "swim"], "upgrades_from": "boat", "promotion_limit": 0},
+      "battleship": {"idx": 7, "hidden": true, "cost": 15, "health": 0, "defence": 30, "movement": 3, "weapon": 5, "range": 2, "attack": 40, "unit_abilities": ["dash", "scout", "carry", "swim"], "upgrades_from": "ship", "promotion_limit": 0},
+      "catapult": {"unit_abilities": null},
+      "archer": {"unit_abilities": ["dash", "fortify"]},
+      "mindbender": {"unit_abilities": ["heal", "convert"]},
+      "swordsman": {"unit_abilities": ["dash"]},
+      "giant": {"unit_abilities": null},
+      "bunny": {"unit_abilities": ["independent"]},
+      "boat": {"idx": 14, "hidden": true, "cost": 0, "health": 0, "defence": 10, "movement": 2, "weapon": 3, "range": 2, "attack": 10, "unit_abilities": ["dash", "carry", "swim"], "promotion_limit": 0},
+      "polytaur": {"unit_abilities": ["dash", "fortify", "independent"]},
+      "navalon": {"idx": 16, "cost": 10, "health": 300, "defence": 40, "movement": 3, "weapon": 7, "range": 1, "attack": 40, "unit_abilities": ["dash", "persist", "navigate", "swim"], "movement_terrain": ["water", "ocean"], "promotion_limit": 0},
+      "dragonegg": {"unit_abilities": ["grow", "fortify"]},
+      "babydragon": {"unit_abilities": ["grow", "dash", "fly", "escape", "scout"]},
+      "firedragon": {"unit_abilities": ["dash", "fly", "splash", "scout"]},
+      "amphibian": {"unit_abilities": ["dash", "escape", "swim", "fortify"]},
+      "tridention": {"attack": 30, "unit_abilities": ["dash", "escape", "swim", "fortify"]},
+      "mooni": {"unit_abilities": ["skate", "autofreeze"]},
+      "battlesled": {"unit_abilities": ["dash", "escape", "skate"]},
+      "icefortress": {"unit_abilities": ["skate", "scout"]},
+      "icearcher": {"unit_abilities": ["dash", "freeze", "fortify"]},
+      "crab": {"weapon": 2, "unit_abilities": ["escape", "swim"]},
+      "gaami": {"unit_abilities": ["autofreeze", "freezearea"]},
+      "hexapod": {"unit_abilities": ["dash", "escape", "creep", "sneak"]},
+      "doomux": {"unit_abilities": ["dash", "creep", "explode"]},
+      "kiton": {"unit_abilities": ["poison"]},
+      "exida": {"unit_abilities": ["poison", "splash", "creep"]},
+      "centipede": {"unit_abilities": ["dash", "eat", "creep"]},
+      "segment": {"unit_abilities": ["independent", "creep", "explode"]},
+      "raychi": {"unit_abilities": ["dash", "swim", "navigate", "explode", "creep"], "movement_terrain": ["water", "ocean"]},
+      "shaman": {"unit_abilities": ["convert", "boost"]},
+      "dagger": {"unit_abilities": ["dash", "surprise", "independent"]},
+      "cloak": {"unit_abilities": ["hide", "creep", "infiltrate", "dash", "scout"]},
+      "cloak_boat": {"unit_abilities": ["carry", "swim", "hide", "scout", "infiltrate", "dash"]},
+      "pirate": {"unit_abilities": ["dash", "swim", "carry", "surprise"]},
+      "bombership": {"health": 0, "unit_abilities": ["carry", "swim", "splash", "stiff"]},
+      "scoutship": {"health": 0, "unit_abilities": ["dash", "carry", "swim", "scout"]},
+      "transportship": {"unit_abilities": ["carry", "swim"]},
+      "rammership": {"health": 0, "unit_abilities": ["dash", "swim", "carry"]},
+      "juggernaut": {"health": 0, "unit_abilities": ["stiff", "stomp", "swim", "carry"]},
+      "mermaidwarrior": null,
+      "mermaidarcher": null,
+      "mermaidswordsman": null,
+      "mermaiddefender": null,
+      "mermaidcloak": null,
+      "mermaiddagger": null,
+      "jelly": null,
+      "shark": null,
+      "siren": null,
+      "aquapult": null
+    },
+    "tribes": {
+      "aquarion": {
+        "starting_unit": "amphibian",
+        "terrain_modifier": {"water": 1.5},
+        "starting_tech": ["basic", "riding2"],
+        "tech_overrides": {"freespirit": "freediving", "riding": "riding2", "fishing": null, "ramming": null, "roads": null, "sailing": null},
+        "unit_overrides": {"archer": null, "bombership": null, "catapult": null, "cloak": null, "dagger": null, "defender": null, "mindbender": null, "rammership": null, "rider": null, "swordsman": null, "warrior": null},
+        "skins": null,
+        "resource_modifier": null,
+        "tribe_abilities": null,
+        "improvement_overrides": null
+      }
+    },
+    "techs": {
+      "basic": {"improvement_unlocks": ["city", "ruin"], "movement_unlocks": {"wetland": null}},
+      "fishing": {"tech_unlocks": ["sailing", "aquaculture"]},
+      "aquaculture": {"unit_unlocks": ["rammership"], "improvement_unlocks": null},
+      "ramming": null,
+      "aquabase": null,
+      "marinelife": null,
+      "aquafishing": null,
+      "waterways": null
+    },
+    "improvements": {
+      "farm": {"terrain_requirements": [{"resource": "crop"}, {"terrain": "field"}]},
+      "windmill": {"adjacency_requirements": [{"improvement": "farm"}], "adjacency_improvements": [{"improvement": "farm"}]},
+      "port": {"terrain_requirements": [{"terrain": "water"}], "routes": ["ocean", "water"]},
+      "aquafarm": null,
+      "atoll": null,
+      "canal": null,
+      "fertilize": null,
+      "landfill": null
+    },
+    "terrains": {
+      "wetland": null,
+      "mangrove": null
+    },
+    "resources": {
+      "aquacrop": null
+    },
+    "skins": null
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 15,
+  "from": 16,
+  "changes": {
+    "tribes": {
+      "kickoo": {"skins": null},
+      "luxidoor": {"skins": null},
+      "oumaji": {"skins": null},
+      "zebasi": {"skins": null}
+    },
+    "techs": {
+      "meditation": {"ability_unlocks": ["discipline"]}
+    }
+  }
+}

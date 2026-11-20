@@ -1,0 +1,22 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 11,
+  "from": 12,
+  "changes": {
+    "units": {
+      "cloak": {"unit_abilities": ["hide", "sneak", "infiltrate", "dash"]},
+      "pirate": null
+    },
+    "tribes": {
+      "elyrion": {"language": "ŧo,δ,m,‡,þa,ȓ,ţe,πo,ƒi,₼,∑,~,¦,₺,ȱ", "improvement_overrides": {"clearforest": "hiddensanctuary", "hiddensanctuary": "sanctuary"}}
+    },
+    "techs": {
+      "basic": {"unit_unlocks": ["giant", "bunny", "scout", "boat", "warrior", "babydragon", "firedragon"]},
+      "freespirit": {"improvement_unlocks": ["temple", "clearforest"]},
+      "chivalry": {"ability_unlocks": ["destroy"], "improvement_unlocks": null},
+      "construction": {"improvement_unlocks": ["windmill", "burnforest"], "ability_unlocks": null},
+      "forestry": {"improvement_unlocks": ["lumberhut", "hiddensanctuary"]},
+      "freediving": {"improvement_unlocks": ["temple", "clearforest"]}
+    }
+  }
+}

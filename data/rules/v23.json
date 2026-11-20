@@ -1,0 +1,55 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 23,
+  "from": 24,
+  "changes": {
+    "units": {
+      "doomux": {"attack": 40, "unit_abilities": ["dash", "creep", "explode", "land"]},
+      "phychi": {"attack": 10, "unit_abilities": ["fly", "dash", "poison", "surprise"]},
+      "kiton": {"unit_abilities": ["poison", "land"]},
+      "segment": {"unit_abilities": ["independent", "creep", "explode", "static", "stiff", "land"]},
+      "raychi": {"cost": 8, "health": 150, "unit_abilities": ["dash", "swim", "navigate", "explode", "creep", "water"]},
+      "shaman": {"unit_abilities": ["convert", "boost", "static", "land"]},
+      "cloak": {"attack": 0, "unit_abilities": ["hide", "creep", "infiltrate", "dash", "scout", "stiff", "land"]},
+      "cloak_boat": {"attack": 0},
+      "mermaidcloak": {"attack": 0, "unit_abilities": ["hide", "creep", "infiltrate", "dash", "scout", "swim", "amphibious", "stiff"]},
+      "mermaiddagger": {"unit_abilities": ["dash", "surprise", "independent", "swim", "amphibious"]},
+      "boomchi": null,
+      "island": null,
+      "ciru": null,
+      "mantis": null,
+      "bugegg": null,
+      "moth": null,
+      "larva": null
+    },
+    "tribes": {
+      "aquarion": {"improvement_overrides": {"landfill": "none"}},
+      "cymanti": {
+        "resource_modifier": {"spores": 0.2},
+        "tech_overrides": {"aquaculture": "hydrology", "fishing": "fishingsimple", "navigation": "oceanology", "sailing": "pescetism", "meditation": null, "philosophy": null},
+        "unit_overrides": {"bombership": null, "cloak": null, "dagger": null, "pirate": null, "rammership": null, "scoutship": null, "swordsman": null},
+        "improvement_overrides": {"port": null}
+      }
+    },
+    "techs": {
+      "basic": {"improvement_unlocks": ["city", "ruin", "landfill"], "unit_unlocks": ["giant", "bunny", "scout", "transportship", "warrior", "babydragon", "firedragon", "dagger"]},
+      "recycling": {"ability_unlocks": ["decompose"]},
+      "hydrology": {"unit_unlocks": null},
+      "fishingsimple": {"movement_unlocks": null},
+      "pescetism": {"movement_unlocks": null},
+      "rituals": null,
+      "mysticism": null
+    },
+    "improvements": {
+      "fungi": {"max_level": 2},
+      "algae": {"improvement_abilities": ["bridge", "slow"], "rewards": [{"population": 1}], "creates": null},
+      "mycelium": {"terrain_requirements": [{"terrain": "field"}, {"terrain": "forest"}], "routes": ["field", "forest"]},
+      "clathrus": {"improvement_abilities": ["limited", "network"], "terrain_requirements": [{"terrain": "water"}, {"terrain": "ocean"}], "adjacency_improvements": [{"improvement": "algae"}], "routes": ["ocean", "water"], "range": 3, "adjacency_requirements": null},
+      "landfill": {"idx": 54, "cost": 0, "improvement_abilities": ["fill", "freelance", "manual", "discrete"], "terrain_requirements": [{"terrain": "wetland"}, {"terrain": "mangrove"}]},
+      "algaespawn": null
+    },
+    "tasks": {
+      "convert": null
+    }
+  }
+}

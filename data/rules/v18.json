@@ -1,0 +1,55 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 18,
+  "from": 19,
+  "changes": {
+    "units": {
+      "bombership": {"attack": 40}
+    },
+    "tribes": {
+      "elyrion": {"skins": null},
+      "polaris": {"tech_overrides": {"aquaculture": "icefishing", "fishing": "sledding", "sailing": "frostwork"}, "unit_overrides": {"rammership": "none"}},
+      "cymanti": {"tech_overrides": {"aquaculture": "pescetism", "sailing": "hydrology"}}
+    },
+    "techs": {
+      "basic": {"tech_unlocks": ["organization", "climbing", "sailing", "hunting", "riding"]},
+      "chivalry": {"improvement_unlocks": ["burnforest"], "ability_unlocks": null},
+      "construction": {"improvement_unlocks": ["windmill"], "ability_unlocks": ["destroy"]},
+      "fishing": {"cost": 2, "tech_unlocks": ["navigation"], "improvement_unlocks": ["fishing"], "unit_unlocks": ["scoutship"], "movement_unlocks": {"ocean": 2, "water": null}},
+      "sailing": {"cost": 1, "tech_unlocks": ["fishing", "aquaculture"], "improvement_unlocks": ["port"], "movement_unlocks": {"water": 2, "ocean": null}, "unit_unlocks": null},
+      "spearing": {"improvement_unlocks": ["burnforest"], "ability_unlocks": null},
+      "frostwork": {"tech_unlocks": ["fishing", "aquaculture"]},
+      "hydrology": {"cost": 1, "tech_unlocks": ["aquaculture", "fishing"]},
+      "aquaculture": {"improvement_unlocks": ["aquafarm"]},
+      "fishingsimple": {"cost": 2, "tech_unlocks": ["aquatism"]}
+    },
+    "improvements": {
+      "customshouse": {
+        "idx": 4,
+        "cost": 5,
+        "work": 1,
+        "max_level": 8,
+        "improvement_abilities": ["limited"],
+        "terrain_requirements": [{"terrain": "field"}],
+        "adjacency_requirements": [{"improvement": "port"}, {"improvement": "forge"}, {"improvement": "sawmill"}, {"improvement": "windmill"}],
+        "adjacency_improvements": [{"improvement": "port"}, {"improvement": "forge"}, {"improvement": "sawmill"}, {"improvement": "windmill"}]
+      },
+      "windmill": {"adjacency_requirements": [{"improvement": "farm"}, {"improvement": "aquafarm"}], "adjacency_improvements": [{"improvement": "farm"}, {"improvement": "aquafarm"}]},
+      "burnforest": {"cost": 2},
+      "whalehunting": {"idx": 16, "max_level": 0, "improvement_abilities": ["consumed", "freelance"], "rewards": [{"currency": 10}], "terrain_requirements": [{"resource": "whale"}]},
+      "temple": {"growth_rate": 3},
+      "foresttemple": {"growth_rate": 3},
+      "watertemple": {"growth_rate": 3},
+      "mountaintemple": {"growth_rate": 3},
+      "enchantwhale": {"idx": 31, "cost": 5, "max_level": 0, "improvement_abilities": ["consumed", "freelance"], "creates": [{"unit": "navalon"}], "terrain_requirements": [{"resource": "whale"}]},
+      "icebank": {"adjacency_improvements": [{"improvement": "polarisclimate"}]},
+      "starfishing": {"rewards": [{"currency": 10}]},
+      "bridge": {"cost": 7},
+      "aquafarm": {"idx": 49, "cost": 5, "max_level": 0, "rewards": [{"population": 2}], "terrain_requirements": [{"resource": "aquacrop"}], "should_suggest_unlock": true},
+      "market": {"work": 2, "max_level": 3, "improvement_abilities": ["doubled", "picky", "limited"]}
+    },
+    "resources": {
+      "aquacrop": {"idx": 9, "resource_terrain_requirements": ["water"]}
+    }
+  }
+}

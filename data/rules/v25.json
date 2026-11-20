@@ -1,0 +1,10 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 25,
+  "from": 26,
+  "changes": {
+    "units": {
+      "mermaidcloak": {"attack": 2}
+    }
+  }
+}

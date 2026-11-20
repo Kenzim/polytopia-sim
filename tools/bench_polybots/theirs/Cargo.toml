@@ -1,0 +1,32 @@
+[package]
+name = "bench-theirs"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.92"
+publish = false
+
+# polybots-engine (crate engine-fast, Apache-2.0), fetched by Cargo at the commit that was measured. None of its code
+# is in this repository.
+[dependencies]
+engine-fast = { git = "https://github.com/polybots-dev/polybots-engine", rev = "e2e4029fda2e5d870dbc2dc847ed421dd0dc44cf" }
+engine-fast-frame = { git = "https://github.com/polybots-dev/polybots-engine", rev = "e2e4029fda2e5d870dbc2dc847ed421dd0dc44cf" }
+mimalloc = { version = "0.1.52", optional = true }
+
+[features]
+mimalloc = ["dep:mimalloc"]
+
+# The release profile polybots-engine ships for its batch and Python packages.
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+overflow-checks = true
+
+# The tuned build, the same for both engines (run.sh adds mimalloc and profile-guided optimisation).
+[profile.tuned]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+overflow-checks = false
+
+[workspace]

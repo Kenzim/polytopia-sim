@@ -1,0 +1,35 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 9,
+  "from": 10,
+  "changes": {
+    "units": {
+      "knight": {"cost": 10, "health": 150},
+      "dagger": null,
+      "cloak": null,
+      "cloak_boat": null
+    },
+    "tribes": {
+      "aquarion": {"language": "pol,at,tis,nép,tun,eid,lan,ico,in,po,séi,do,aq,quo,tic,fic,nau"},
+      "bardur": {"color": 0, "language": "gu,lak,rø,bu,tof,fla,ork,gru,lin,ark,ur"},
+      "imperius": {"language": "mo,nu,pi,ca,te,ro,lus,mus,ica,lo,re,ma,ip,sum,do,res"},
+      "kickoo": {"language": "lu,va,si,ma,an,nu, ,li,ko,oki,lo,ko,no"},
+      "oumaji": {"language": "on,dor,ye,ke,ba,ji,ha,la,si,gh,lim,mu"},
+      "quetzali": {"language": "ya,tal,chu,ill,ca,ex,ja,was, el , ,cho,wop,qu,tz,tek,ix"},
+      "zebasi": {"language": "zu,za,bo,zan,la,mo,co,ya,wa,zim"},
+      "cymanti": {"language": "cy,ly,phy,dio,bio,tic,sy,ca,zi,um,sis,ci,hex,pod,ea,rhi,the,exo,neo,ner,seg,ho,lo,chy,my,ce,li,co,ta,ia,aph,ich,zo,di,bo"}
+    },
+    "techs": {
+      "shields": {"tech_unlocks": null, "ability_unlocks": null},
+      "diplomacy": null
+    },
+    "improvements": {
+      "windmill": {"growth_rewards": [{"score": 0, "population": 1}]},
+      "clearforest": {"rewards": [{"currency": 2}]},
+      "forge": {"growth_rewards": [{"score": 0, "population": 2}], "work": null},
+      "algae": {"routes": ["ocean", "water"], "rewards": null},
+      "clathrus": {"improvement_abilities": ["limited", "poison"], "routes": null, "range": null}
+    },
+    "diplomacy": null
+  }
+}

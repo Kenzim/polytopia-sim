@@ -1,0 +1,20 @@
+[package]
+name = "polytopia-sim-py"
+version = "0.1.0"
+edition = "2021"
+description = "Python bindings for the polytopia-sim rules engine"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lib]
+name = "polytopia_sim"
+crate-type = ["cdylib"]
+
+[dependencies]
+engine = { package = "polytopia-sim", path = ".." }
+pyo3 = { version = "0.25", features = ["extension-module", "abi3-py39"] }
+numpy = "0.25"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1

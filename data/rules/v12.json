@@ -1,0 +1,20 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 12,
+  "from": 13,
+  "changes": {
+    "units": {
+      "mindbender": {"unit_abilities": ["heal", "convert", "detect"]},
+      "cloak": {"weapon": 4, "unit_abilities": ["hide", "sneak", "infiltrate", "dash", "detect"]},
+      "cloak_boat": {"weapon": 4, "unit_abilities": ["carry", "swim", "hide", "sneak", "infiltrate", "dash"]},
+      "pirate": {"weapon": 1, "unit_abilities": ["dash", "carry", "swim"]}
+    },
+    "techs": {
+      "basic": {"unit_unlocks": ["giant", "bunny", "scout", "boat", "warrior", "babydragon", "firedragon", "pirate"]}
+    },
+    "improvements": {
+      "sanctuary": {"growth_rate": 3},
+      "icebank": {"max_level": 10}
+    }
+  }
+}

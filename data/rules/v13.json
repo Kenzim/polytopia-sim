@@ -1,0 +1,14 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 13,
+  "from": 14,
+  "changes": {
+    "tribes": {
+      "bardur": {"skins": null},
+      "hoodrick": {"skins": null},
+      "imperius": {"skins": null},
+      "vengir": {"skins": null},
+      "xinxi": {"skins": null}
+    }
+  }
+}

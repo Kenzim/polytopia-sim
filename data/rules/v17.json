@@ -1,0 +1,87 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 17,
+  "from": 18,
+  "changes": {
+    "units": {
+      "knight": {"weapon": 2},
+      "gaami": {"unit_abilities": ["autofreeze"]},
+      "bombership": {"health": 200, "movement": 3, "unit_abilities": ["carry", "swim", "splash"]},
+      "scoutship": {"health": 100},
+      "transportship": {"defence": 20},
+      "rammership": {"health": 150, "weapon": 1, "unit_abilities": ["sneak", "dash", "swim", "carry"]},
+      "juggernaut": {"health": 200, "weapon": 6, "range": 2, "attack": 30, "unit_abilities": ["stiff", "dash", "swim", "carry"]}
+    },
+    "tribes": {
+      "aimo": {"skins": null},
+      "imperius": {"starting_resource": null},
+      "kickoo": {"starting_resource": null},
+      "quetzali": {"skins": null},
+      "yadakk": {"skins": null},
+      "polaris": {"tech_overrides": {"aquaculture": "sledding", "fishing": "frostwork", "sailing": "icefishing"}, "unit_overrides": {"rammership": null}},
+      "cymanti": {"tech_overrides": {"aquaculture": "hydrology", "sailing": "pescetism"}}
+    },
+    "techs": {
+      "basic": {"tech_unlocks": ["organization", "climbing", "fishing", "hunting", "riding"]},
+      "fishing": {"cost": 1, "tech_unlocks": ["sailing", "aquaculture"], "improvement_unlocks": ["fishing", "port"], "movement_unlocks": {"water": 2, "ocean": null}, "unit_unlocks": null},
+      "sailing": {"cost": 2, "tech_unlocks": ["navigation"], "unit_unlocks": ["scoutship"], "movement_unlocks": {"ocean": 1, "water": null}, "improvement_unlocks": null},
+      "frostwork": {"tech_unlocks": ["aquaculture", "sailing"], "improvement_unlocks": null},
+      "hydrology": {"cost": 2, "tech_unlocks": ["aquatism"]},
+      "fishingsimple": {"cost": 1, "tech_unlocks": ["sailing", "aquaculture"]},
+      "icefishing": {"improvement_unlocks": ["fishing", "outpost"]}
+    },
+    "improvements": {
+      "none": {"should_suggest_unlock": false},
+      "city": {"should_suggest_unlock": false},
+      "ruin": {"should_suggest_unlock": false},
+      "road": {"should_suggest_unlock": false},
+      "customshouse": {"should_suggest_unlock": false},
+      "windmill": {"adjacency_requirements": [{"improvement": "farm"}], "adjacency_improvements": [{"improvement": "farm"}], "should_suggest_unlock": false},
+      "port": {"should_suggest_unlock": false},
+      "clearforest": {"should_suggest_unlock": false},
+      "burnforest": {"should_suggest_unlock": false},
+      "lumberhut": {"should_suggest_unlock": false},
+      "sawmill": {"should_suggest_unlock": false},
+      "growforest": {"should_suggest_unlock": false},
+      "whalehunting": {"should_suggest_unlock": false},
+      "temple": {"should_suggest_unlock": false},
+      "foresttemple": {"should_suggest_unlock": false},
+      "watertemple": {"should_suggest_unlock": false},
+      "mountaintemple": {"should_suggest_unlock": false},
+      "forge": {"should_suggest_unlock": false},
+      "monument1": {"should_suggest_unlock": false},
+      "monument2": {"should_suggest_unlock": false},
+      "monument3": {"should_suggest_unlock": false},
+      "monument4": {"should_suggest_unlock": false},
+      "monument5": {"should_suggest_unlock": false},
+      "monument6": {"should_suggest_unlock": false},
+      "monument7": {"should_suggest_unlock": false},
+      "enchantanimal": {"should_suggest_unlock": false},
+      "enchantwhale": {"should_suggest_unlock": false},
+      "sanctuary": {"should_suggest_unlock": false},
+      "outpost": {"should_suggest_unlock": false},
+      "icebank": {"should_suggest_unlock": false},
+      "icetemple": {"should_suggest_unlock": false},
+      "polarisclimate": {"should_suggest_unlock": false},
+      "fungi": {"should_suggest_unlock": false},
+      "algae": {"should_suggest_unlock": false},
+      "mycelium": {"should_suggest_unlock": false},
+      "clathrus": {"should_suggest_unlock": false},
+      "hiddensanctuary": {"should_suggest_unlock": false},
+      "starfishing": {"should_suggest_unlock": false},
+      "lighthouse": {"should_suggest_unlock": false},
+      "bridge": {"cost": 10},
+      "market": {
+        "work": 1,
+        "max_level": 8,
+        "improvement_abilities": ["limited"],
+        "adjacency_requirements": [{"improvement": "port"}, {"improvement": "forge"}, {"improvement": "sawmill"}, {"improvement": "windmill"}],
+        "adjacency_improvements": [{"improvement": "port"}, {"improvement": "forge"}, {"improvement": "sawmill"}, {"improvement": "windmill"}],
+        "should_suggest_unlock": false
+      }
+    },
+    "resources": {
+      "fish": {"resource_terrain_requirements": ["water"]}
+    }
+  }
+}

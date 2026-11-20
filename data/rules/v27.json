@@ -1,0 +1,10 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 27,
+  "from": 28,
+  "changes": {
+    "units": {
+      "moth": {"unit_abilities": ["dash", "sneak", "infiltrate", "poison", "static", "stiff", "fly"]}
+    }
+  }
+}

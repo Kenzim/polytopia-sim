@@ -1,0 +1,10 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 24,
+  "from": 25,
+  "changes": {
+    "units": {
+      "bugegg": {"unit_abilities": ["grow", "stiff", "static", "swim", "explode"]}
+    }
+  }
+}

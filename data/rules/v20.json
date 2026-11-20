@@ -1,0 +1,24 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 20,
+  "from": 21,
+  "changes": {
+    "units": {
+      "giant": {"weapon": 2},
+      "battlesled": {"weapon": 2},
+      "crab": {"defence": 50},
+      "jelly": {"attack": 0},
+      "shark": {"attack": 30}
+    },
+    "tribes": {
+      "aquarion": {"skins": ["Swamp"], "starting_resource": ["fruit"]}
+    },
+    "techs": {
+      "aquaculture": {"improvement_unlocks": ["aquafarm"]},
+      "waterways": {"improvement_unlocks": ["atoll", "canal"], "ability_unlocks": null}
+    },
+    "improvements": {
+      "icetemple": {"growth_rate": 3}
+    }
+  }
+}

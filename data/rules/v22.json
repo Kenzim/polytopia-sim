@@ -1,0 +1,42 @@
+{
+  "format": "polytopia-rules-1",
+  "version": 22,
+  "from": 23,
+  "changes": {
+    "units": {
+      "polytaur": {"cost": 2},
+      "mooni": {"movement": 1},
+      "battlesled": {"movement": 2},
+      "icefortress": {"movement": 1, "unit_abilities": ["skate", "scout", "land"]},
+      "icearcher": {"attack": 1}
+    },
+    "tribes": {
+      "aimo": {"starting_unit": "warrior", "starting_tech": ["basic", "meditation"], "starting_resource": ["game"], "starting_stars": null},
+      "aquarion": {"starting_resource": ["fish"]},
+      "bardur": {"starting_resource": ["game"]},
+      "elyrion": {"starting_resource": ["game"]},
+      "hoodrick": {"starting_resource": ["game"], "starting_stars": null},
+      "imperius": {"starting_resource": ["fruit"]},
+      "kickoo": {"starting_resource": ["fish"]},
+      "luxidoor": {"starting_resource": ["game"], "starting_stars": null},
+      "oumaji": {"starting_resource": ["fruit"], "starting_stars": null},
+      "quetzali": {"starting_resource": ["fruit"], "starting_stars": null},
+      "vengir": {"starting_resource": ["game"]},
+      "xinxi": {"starting_resource": ["metal"], "starting_stars": null},
+      "yadakk": {"starting_resource": ["fruit"], "starting_stars": null},
+      "zebasi": {"starting_resource": ["crop"]},
+      "polaris": {"starting_resource": ["game"]},
+      "cymanti": {"starting_resource": ["spores"]}
+    },
+    "improvements": {
+      "burnforest": {"cost": 5},
+      "temple": {"growth_rewards": [{"score": 50, "population": 0}]},
+      "foresttemple": {"growth_rewards": [{"score": 50, "population": 0}]},
+      "watertemple": {"growth_rewards": [{"score": 50, "population": 0}]},
+      "mountaintemple": {"growth_rewards": [{"score": 50, "population": 0}]},
+      "forge": {"terrain_requirements": [{"terrain": "field"}]},
+      "enchantanimal": {"cost": 2},
+      "icetemple": {"growth_rewards": [{"score": 50, "population": 0}]}
+    }
+  }
+}
