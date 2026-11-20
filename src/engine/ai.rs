@@ -40,7 +40,9 @@ impl Engine {
         crate::ai::decide::stupid_factor(h, self.stupidity(player))
     }
 
-    /// The terrain is one the player's techs let units enter.
+    /// The terrain is one the player's techs let units enter, or the tile has a bridge. Retail compares the tile's raw
+    /// terrain with the player's unlocked movement terrains and looks at nothing else, so a flooded or algae tile does
+    /// not count as wetland here (it does for building and movement, which test the effects themselves).
     pub fn can_be_accessed_by_player(&self, tile: &Tile, player: u8) -> bool {
         self.can_be_accessed_with(tile, &self.unlocked_movement_terrain(player))
     }
@@ -48,7 +50,6 @@ impl Engine {
     /// [`Self::can_be_accessed_by_player`] with the player's `unlocked_movement_terrain` passed in.
     fn can_be_accessed_with(&self, tile: &Tile, allowed: &[i32]) -> bool {
         allowed.contains(&tile.terrain)
-            || (self.is_wetland_index(tile.index) && allowed.contains(&terrain::WETLAND))
             // An improvement with the Bridge ability makes the tile accessible.
             || (crate::env_var!("NO_BRIDGE_ACCESS").is_err() && tile.improvement != 0 && self.t.has_improvement_ability(tile.improvement, improvement_ability::BRIDGE))
     }

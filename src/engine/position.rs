@@ -55,6 +55,17 @@ fn deferred_json(d: &Deferred) -> Json {
                 .set("path", path)
                 .build();
         }
+        Deferred::Explore(r) => {
+            let path = Json::Arr(r.path[..r.len as usize].iter().map(|i| Json::from(i64::from(*i))).collect());
+            return obj()
+                .set("kind", "explore")
+                .set("player", r.player)
+                .set("sight", r.sight)
+                .set("next", r.next)
+                .set("area", r.area)
+                .set("path", path)
+                .build();
+        }
         Deferred::Train { owner, unit_type, at, home, veteran } => {
             return obj()
                 .set("kind", "train")
@@ -79,6 +90,8 @@ fn deferred_json(d: &Deferred) -> Json {
                 .set("next", r.next)
                 .set("pay", r.pay)
                 .set("tiles", tiles)
+                .set("spores_x", r.spores.map_or(-1, |c| c.x))
+                .set("spores_y", r.spores.map_or(-1, |c| c.y))
                 .build();
         }
     };
@@ -118,6 +131,28 @@ fn deferred_from_json(v: &Json) -> Option<Deferred> {
                 path,
             })
         }
+        "explore" => {
+            let tiles: Vec<u16> = v
+                .get("path")?
+                .as_arr()
+                .iter()
+                .filter_map(|p| p.as_i64().and_then(|i| u16::try_from(i).ok()))
+                .take(EXPLORE_PATH_MAX)
+                .collect();
+            if tiles.is_empty() {
+                return None;
+            }
+            let mut path = [0; EXPLORE_PATH_MAX];
+            path[..tiles.len()].copy_from_slice(&tiles);
+            Deferred::Explore(ExploreRun {
+                player: v.int("player", 0) as u8,
+                sight: v.int("sight", 0) as u8,
+                len: tiles.len() as u8,
+                next: (v.int("next", 0) as u8).min(tiles.len() as u8),
+                area: v.int("area", 0) as u16,
+                path,
+            })
+        }
         "train" => Deferred::Train {
             owner: v.int("player", 0) as u8,
             unit_type: v.int("type", 0) as i32,
@@ -148,6 +183,8 @@ fn deferred_from_json(v: &Json) -> Option<Deferred> {
                 next: (v.int("next", 0) as u8).min(tiles.len() as u8),
                 pay: v.int("pay", 0) as i32,
                 tiles: list,
+                spores: Some(Wc { x: v.int("spores_x", -1) as i32, y: v.int("spores_y", -1) as i32 })
+                    .filter(|c| c.x >= 0 && c.y >= 0),
             })
         }
         _ => return None,

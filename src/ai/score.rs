@@ -577,12 +577,20 @@ pub fn get_best_attack_for_position(attacks: &[(f32, i32)]) -> f32 {
 /// place of the game's tile-reference compare.
 /// `score / max(1, manhattan)`, plus another `score` when the unit is on that tile.
 pub fn get_position_score_for_missions(here: WorldCoordinates, missions: &[(Mission, i32, bool)]) -> f32 {
+    position_score_for_missions(here, missions.iter().copied())
+}
+
+/// [`get_position_score_for_missions`] over missions as they are produced: (mission, Manhattan distance, can capture).
+pub fn position_score_for_missions(
+    here: WorldCoordinates,
+    missions: impl Iterator<Item = (Mission, i32, bool)>,
+) -> f32 {
     let mut total = 0.0f32;
     for (mission, manhattan, can_capture) in missions {
         if mission.kind == MissionType::Capture && !can_capture {
             continue;
         }
-        let distance = i32_to_f32(imax(1, *manhattan));
+        let distance = i32_to_f32(imax(1, manhattan));
         let mut add = mission.score / distance;
         if mission.tile == here {
             add += mission.score;

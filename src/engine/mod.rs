@@ -38,7 +38,9 @@ pub use score_parts::ScoreParts;
 pub use scout::ScoutRun;
 pub use setup::{GameOptions, NewGameError, PlayerSetup};
 pub use tables::Tables;
+pub use vision::{ExploreRun, EXPLORE_PATH_MAX};
 
+use crate::flat_map::FlatMap;
 use crate::{GameState, ImprovementRuntime, PlayerState, Tile, UnitState, WorldCoordinates};
 use std::sync::Arc;
 use tables::*;
@@ -260,6 +262,8 @@ pub enum Deferred {
     Population(Wc, i32),
     /// The rest of a scout's move chain, held back by a city reward that an earlier step raised.
     Scout(ScoutRun),
+    /// The rest of a move's explore actions, held back by a city reward that one of its tiles raised.
+    Explore(ExploreRun),
     /// The spawns and payment of an infiltration reward, held back by a city reward that one of its spawns raised.
     Infiltrate(InfiltrateRun),
     /// A unit train whose occupant push raised a city reward: the unit appears once the reward is answered.
@@ -290,10 +294,10 @@ pub struct Engine {
     pub peace_requests: Vec<(u8, u8)>,
     /// The ids of the winning players, filled when the game ends (see [`Engine::game_winners`]).
     pub winners: Vec<u8>,
-    pub ai_states: std::collections::BTreeMap<u8, ai_state::AiState>,
+    pub ai_states: FlatMap<u8, ai_state::AiState>,
     pub opinions: std::cell::RefCell<opinion::OpinionStore>,
     /// Per city, the last population check and the available population: (key, value), recomputed when `key <= turn`.
-    pub pop_cache: std::cell::RefCell<std::collections::BTreeMap<(i32, i32), (i64, i32)>>,
+    pub pop_cache: std::cell::RefCell<FlatMap<(i32, i32), (i64, i32)>>,
     /// Set by an explore or a road build, consumed by the deferred action that ends every command
     /// (it triggers the route update).
     pub routes_flagged: bool,
@@ -392,10 +396,19 @@ impl Engine {
         GridScope(&self.s, self.s.unit_grid_begin())
     }
 
-    /// Run `f` with the unit grid filled; `f` must not change `self.s.units` (checked by feature `grid_check`).
+    /// Share the lookups that many questions about one unchanged position have in common (the tile to unit grid and
+    /// the zone-of-control maps of the move searches) until the returned scope drops. Answers are the same with or
+    /// without it. A scope opened while another is alive adds nothing, whichever engine holds the first.
+    pub fn query_scope(&self) -> QueryScope<'_> {
+        QueryScope { _grid: self.unit_grid_scope(), _zoc: self.zoc_scope() }
+    }
+
+    /// Run `f` with the unit grid filled and the zone-of-control maps shared; `f` must not change `self.s.units`, the
+    /// relations between players or their techs (checked by feature `grid_check`).
     pub(crate) fn with_unit_grid<R>(&mut self, f: impl FnOnce(&mut Engine) -> R) -> R {
         let began = self.s.unit_grid_begin();
-        let scope = GridScopeMut(self, began);
+        let sharing = self.zoc_share_begin();
+        let scope = GridScopeMut(self, began, sharing);
         f(&mut *scope.0)
     }
 
@@ -520,6 +533,27 @@ impl Engine {
             .tiles
             .get(tile_index as usize)
             .is_some_and(|t| t.effects & ((1 << Self::EFFECT_FLOODED) | (1 << Self::EFFECT_ALGAE)) != 0)
+    }
+
+    /// The direction a bridge on tile `tile_index` cannot be crossed in, for `player`'s units. A bridge runs along
+    /// direction 3 when both vertical neighbours are anchors, else along direction 5 when both horizontal ones are,
+    /// and the blocked direction is the other of the two; with no anchor pair it is 8. An anchor is a tile that is
+    /// not water, and before version 104 it must also be explored by the player.
+    pub fn blocked_bridge_direction(&self, player: u8, tile_index: i32) -> i32 {
+        let Some(at) = self.s.map.tiles.get(tile_index as usize).map(|t| t.coordinates) else { return 8 };
+        let anchor = |dx: i32, dy: i32| {
+            let c = Wc { x: at.x + dx, y: at.y + dy };
+            self.tile(c).is_some_and(|t| {
+                !crate::rules::path::is_water(t.terrain) && (self.s.version > 103 || self.is_explored_at(player, c))
+            })
+        };
+        if anchor(0, -1) && anchor(0, 1) {
+            5
+        } else if anchor(-1, 0) && anchor(1, 0) {
+            3
+        } else {
+            8
+        }
     }
 
     // ---------- techs and unlocks ----------
@@ -734,8 +768,13 @@ impl Engine {
             input.improvement_known = tile.improvement != 0;
             input.is_city = tile.improvement == improvement::CITY;
             input.same_owner = tile.owner == unit.owner;
-            input.has_city_wall =
-                self.improvement_rt(tile.coordinates).is_some_and(|r| r.rewards.contains(&crate::CityReward::CityWall));
+            // `defence_bonus` reads the wall only for a fortifying unit in a city of its owner.
+            input.has_city_wall = input.is_city
+                && input.same_owner
+                && input.has_fortify
+                && self
+                    .improvement_rt(tile.coordinates)
+                    .is_some_and(|r| r.rewards.contains(&crate::CityReward::CityWall));
         }
         defence_bonus(&input)
     }
@@ -841,10 +880,23 @@ impl Drop for GridScope<'_> {
     }
 }
 
-struct GridScopeMut<'a>(&'a mut Engine, bool);
+/// See [`Engine::query_scope`].
+pub struct QueryScope<'a> {
+    _grid: GridScope<'a>,
+    _zoc: legal::ZocScope<'a>,
+}
+
+struct GridScopeMut<'a>(&'a mut Engine, bool, bool);
 
 impl Drop for GridScopeMut<'_> {
     fn drop(&mut self) {
+        if self.2 {
+            #[cfg(feature = "grid_check")]
+            if !std::thread::panicking() {
+                self.0.zoc_share_check();
+            }
+            legal::zoc_share_end();
+        }
         if self.1 {
             #[cfg(feature = "grid_check")]
             self.0.s.unit_grid_check();

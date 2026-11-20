@@ -1,4 +1,4 @@
-//! Decompose sent again for an improvement that is already decomposing.
+//! Decompose commands the improvement's ability list does not offer: a repeat, and one without the player ability.
 //!
 //! Retail's decompose command is valid whenever the tile holds an improvement; its action adds the Decomposing effect
 //! only if the improvement lacks it. A player who clicks the button twice therefore sends a command the game accepts and
@@ -48,8 +48,11 @@ fn a_second_decompose_is_accepted_and_changes_nothing() {
 }
 
 #[test]
-fn a_decompose_without_the_ability_is_still_refused() {
+fn a_decompose_needs_only_an_improvement_on_the_tile() {
     let e = board("0");
-    let cmd = Command::Decompose { at: Wc { x: 2, y: 2 } };
-    assert!(!e.accepts(&cmd));
+    let decompose = |x, y| Command::Decompose { at: Wc { x, y } };
+    assert!(!e.legal_commands().contains(&decompose(2, 2)), "the ability list does not offer it");
+    assert!(e.accepts(&decompose(2, 2)), "the command's own check passes with an improvement");
+    assert!(e.accepts(&decompose(0, 0)), "a city counts as an improvement");
+    assert!(!e.accepts(&decompose(1, 1)), "an empty tile fails the check");
 }

@@ -228,7 +228,9 @@ impl Engine {
     pub fn improvement_max_level(&self, at: Wc) -> i32 {
         let Some(tile) = self.tile(at) else { return 0 };
         let Some(info) = self.t.improvement(tile.improvement) else { return 0 };
-        let microbes = self.has_player_ability(tile.owner, player_ability::MICROBES);
+        // Only Fungi reads the owner's Microbes.
+        let microbes = tile.improvement == economy::FUNGI_IMPROVEMENT
+            && self.has_player_ability(tile.owner, player_ability::MICROBES);
         economy::max_improvement_level(tile.improvement, info.data.max_level.unwrap_or(0), microbes)
     }
 
@@ -488,6 +490,10 @@ impl Engine {
             ..UnitState::default()
         });
         self.explore_unit(id);
+        // Retail's train action puts the unit on the tile and then checks it for poison, as a move would.
+        if let Some(unit) = self.unit_at(place).cloned() {
+            self.check_step_on_poison(&unit, place);
+        }
         if self.t.unit(type_idx).is_some_and(|i| i.abilities.contains(&unit_ability::TENTACLES)) {
             self.update_tentacles();
         }
@@ -581,37 +587,13 @@ impl Engine {
         // and their city gains or loses the growth reward (retail scratch run 2026-10-19: capturing Zebasi's capital
         // dropped a windmill on each side of the new border by one level, and each ruling city by one population).
         if crate::env_var!("OLD_CAPTURE_LEVELS").is_err() {
-            let mut near: Vec<Wc> = Vec::new();
             for c in self.city_area(city) {
-                for n in std::iter::once(c).chain(self.neighbors(c)) {
-                    if !near.contains(&n) {
-                        near.push(n);
-                    }
-                }
-            }
-            for n in near {
-                let Some(t) = self.tile(n).copied() else { continue };
-                // Only adjacency buildings take part; testing that first avoids a shared-count update on the tables.
-                if self.t.improvement(t.improvement).is_none_or(|i| i.data.adjacency_improvements.is_empty()) {
-                    continue;
-                }
-                let tables = self.t.clone();
-                let Some(info) = tables.improvement(t.improvement) else { continue };
-                if info.abilities.contains(&improvement_ability::PATINA) {
-                    continue;
-                }
-                let Some(before) = self.improvement_rt(n).map(|r| i32::from(r.level)) else { continue };
-                let level = self.improvement_level(n);
-                if level == before {
-                    continue;
-                }
-                if let Some(rt) = self.improvement_rt_mut(n) {
-                    rt.level = level as u16;
-                }
-                let pop: i32 = info.data.growth_rewards.iter().map(|g| g.population.unwrap_or(0)).sum();
-                if pop != 0 && self.is_city(t.ruling_city) {
-                    self.add_population(t.ruling_city, pop * (level - before));
-                }
+                let mut ups: Vec<Deferred> =
+                    self.surrounding_level_ups(c).into_iter().map(Deferred::ImprovementLevelUp).collect();
+                ups.extend(self.surrounding_level_downs(c).into_iter().map(Deferred::ImprovementLevelDown));
+                let base = self.deferred.len();
+                self.deferred.extend(ups);
+                self.run_deferred_above(base);
             }
         }
         // Each captured improvement's population joins the captured city.

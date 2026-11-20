@@ -1,7 +1,7 @@
 //! Per-player AI scratch state (the AI state, military statistics, missions and unit targets).
 
 use super::*;
-use std::collections::BTreeMap;
+use crate::flat_map::FlatMap;
 
 /// Military statistics: summed unit strength, plus the normalised copy `update_normal` builds.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -78,7 +78,7 @@ pub struct AiState {
     pub missions: Vec<Mission>,
     pub hit_list: Vec<UnitTarget>,
     /// `blocked_tiles`: per-coordinate position score added by this player's own units.
-    pub blocked_tiles: BTreeMap<(i32, i32), f32>,
+    pub blocked_tiles: FlatMap<(i32, i32), f32>,
     /// Debug: every analysis-phase position rating (unit, x, y, value).
     pub analysis_rates: Vec<(u32, i32, i32, f32)>,
     pub player_military_stats: Vec<(u8, MilitaryStats)>,

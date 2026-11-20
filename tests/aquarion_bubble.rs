@@ -34,8 +34,17 @@ fn board(techs: &[i64], units: &str, flooded: &[(i32, i32)]) -> Engine {
                 (8, 2) => t.push_str(r#","city":true,"capital":true,"owner":2,"ruling":[8,2]"#),
                 _ => {}
             }
-            if flooded.contains(&(x, y)) {
-                t.push_str(r#","effects":[1]"#);
+            let ringed = units.contains(r#""type":52,"owner":2,"x":"#) && {
+                let jelly = units.split(r#""type":52,"owner":2,"x":"#).nth(1).unwrap();
+                let jx: i32 = jelly.split(',').next().unwrap().parse().unwrap();
+                let jy: i32 = jelly.split(r#""y":"#).nth(1).unwrap().split(',').next().unwrap().parse().unwrap();
+                (jx - x).abs() <= 1 && (jy - y).abs() <= 1 && (jx, jy) != (x, y)
+            };
+            match (flooded.contains(&(x, y)), ringed) {
+                (true, true) => t.push_str(r#","effects":[1,3]"#),
+                (true, false) => t.push_str(r#","effects":[1]"#),
+                (false, true) => t.push_str(r#","effects":[3]"#),
+                _ => {}
             }
             tiles.push(format!("{{{t}}}"));
         }
@@ -96,4 +105,38 @@ fn without_the_ability_or_the_amphibious_unit_there_is_no_bubble() {
     if e.apply(Command::Move { unit: 1, to: wc(2, 1) }).is_ok() {
         assert!(!e.unit(1).unwrap().bubble, "a shark is not amphibious");
     }
+}
+
+/// A move queues the bubble and then the tentacle hit, and the action stack runs the hit first, so its pop finds no
+/// bubble yet and the unit that stepped onto a flooded tentacle tile keeps the one it was given. Corpus: the mermaid
+/// warrior of 4679ca4c and three more units whose server twin moved two tiles after such a hit.
+#[test]
+fn a_tentacle_hit_on_the_step_that_gives_the_bubble_does_not_take_it_away() {
+    const JELLY: i64 = 52;
+    let units = format!(
+        r#"{},{{"id":2,"type":{JELLY},"owner":2,"x":3,"y":2,"health":200,"flags":[]}}"#,
+        unit(1, MERMAID_WARRIOR, 1, 1, "")
+    );
+    let mut e = board(&[AQUABASE, WATERWAYS], &units, &[(2, 1)]);
+    e.apply(Command::Move { unit: 1, to: wc(2, 1) }).expect("the move is legal");
+    let u = e.unit(1).expect("it survives the hit");
+    assert!(u.health < 100, "the jelly hit it");
+    assert!(u.bubble, "the bubble given by the step is still there");
+}
+
+/// Retail looks at the Bubble effect when it queues the action, so a unit that already has the bubble
+/// queues nothing and the tentacle hit on the step takes its bubble away. Corpus: the crab of 264de434 and the
+/// amphibian of 98714f86 end with no bubble on the server.
+#[test]
+fn a_tentacle_hit_on_a_step_by_a_unit_that_already_has_the_bubble_takes_it_away() {
+    const JELLY: i64 = 52;
+    let units = format!(
+        r#"{},{{"id":2,"type":{JELLY},"owner":2,"x":3,"y":2,"health":200,"flags":[]}}"#,
+        unit(1, MERMAID_WARRIOR, 1, 1, r#""bubble""#)
+    );
+    let mut e = board(&[AQUABASE, WATERWAYS], &units, &[(1, 1), (2, 1)]);
+    e.apply(Command::Move { unit: 1, to: wc(2, 1) }).expect("the move is legal");
+    let u = e.unit(1).expect("it survives the hit");
+    assert!(u.health < 100, "the jelly hit it");
+    assert!(!u.bubble, "the hit popped the bubble and nothing gave it back");
 }

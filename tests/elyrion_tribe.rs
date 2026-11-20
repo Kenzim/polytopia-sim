@@ -170,6 +170,37 @@ fn a_dragon_too_young_to_grow_stays_as_it_is_and_takes_no_id() {
     assert_eq!(e.s.current_unit_id, unit_id);
 }
 
+/// Player 1's transport ship (unit 1) on water at (3,3), carrying dragon egg 2 made on turn `created`; the land
+/// tile (4,3) is free to land on.
+fn egg_ship_board(created: i32) -> Engine {
+    let water = |x: i32, y: i32| if x <= 3 && y == 3 { (1, String::new()) } else { (FIELD, String::new()) };
+    let units = format!(
+        r#"{{"id":1,"type":43,"owner":1,"x":3,"y":3,"created":1,"passenger":{{"id":2,"type":{DRAGON_EGG},"owner":1,"created":{created}}}}}"#
+    );
+    let mut e = board(water, &units, 0);
+    e.s.current_unit_id = 2;
+    e
+}
+
+#[test]
+fn an_egg_that_lands_more_than_two_turns_after_it_was_made_grows_up_and_takes_a_unit_id() {
+    let mut e = egg_ship_board(3);
+    e.apply_unchecked(Command::Move { unit: 1, to: wc(4, 3) });
+    let egg = e.unit_at(wc(4, 3)).expect("the passenger has landed");
+    assert_eq!(egg.id, 2, "the grown unit keeps the egg's id");
+    assert_eq!(egg.type_idx, BABY_DRAGON, "landing on turn 6, three turns after it was made, the egg hatches");
+    assert_eq!(e.s.current_unit_id, 3, "the growth is an upgrade action and takes an id");
+}
+
+#[test]
+fn an_egg_that_lands_two_turns_after_it_was_made_stays_an_egg() {
+    let mut e = egg_ship_board(4);
+    e.apply_unchecked(Command::Move { unit: 1, to: wc(4, 3) });
+    let egg = e.unit_at(wc(4, 3)).expect("the passenger has landed");
+    assert_eq!(egg.type_idx, DRAGON_EGG);
+    assert_eq!(e.s.current_unit_id, 2);
+}
+
 #[test]
 fn a_growth_that_levels_a_city_up_keeps_the_turn_with_its_owner_until_the_reward_is_answered() {
     let mut e = dragon_board(1);

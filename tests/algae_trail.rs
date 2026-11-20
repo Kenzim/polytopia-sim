@@ -81,6 +81,20 @@ fn a_unit_without_the_ability_leaves_no_trail() {
     assert!(algae_tiles(&e).is_empty());
 }
 
+/// The step into the tile of a unit the island has killed is a move, so it leaves the same trail (corpus game
+/// 2704b9f5: the server had Algae on the port tile the island stepped into).
+#[test]
+fn an_island_that_kills_and_steps_in_leaves_algae_on_both_tiles() {
+    let units = format!(
+        r#"{{"id":1,"type":{ISLAND},"owner":1,"x":1,"y":1,"health":200}},{{"id":2,"type":{SHARK},"owner":2,"x":2,"y":1,"health":1}}"#
+    );
+    let mut e = board(&units, &[]);
+    e.apply(Command::Attack { unit: 1, target: wc(2, 1) }).expect("the attack is legal");
+    assert!(e.unit(2).is_none(), "the shark died");
+    assert_eq!(e.unit(1).unwrap().coordinates, wc(2, 1), "the island stepped in");
+    assert_eq!(algae_tiles(&e), vec![(1, 1), (2, 1)]);
+}
+
 /// Replays the Cymanti games of the weekly challenge of 2026-10-26 and compares the Algae tiles at the end with
 /// the server's. Skips when the private replay files are absent.
 #[test]

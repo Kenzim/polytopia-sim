@@ -55,6 +55,7 @@ pub mod ai;
 pub mod data;
 pub mod dotnet_sort;
 pub mod engine;
+pub mod flat_map;
 pub mod game;
 pub mod hash;
 pub mod json;

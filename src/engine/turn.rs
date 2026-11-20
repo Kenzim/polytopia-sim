@@ -365,6 +365,7 @@ impl Engine {
             Deferred::Score(..) => {}
             Deferred::Population(c, amount) => self.add_population(c, amount),
             Deferred::Scout(mut run) => self.continue_scout(&mut run),
+            Deferred::Explore(mut run) => self.continue_explore(&mut run),
             Deferred::Infiltrate(mut run) => self.continue_infiltrate(&mut run),
             Deferred::Train { owner, unit_type, at, home, veteran } => {
                 if veteran {
@@ -400,6 +401,31 @@ impl Engine {
             }
         }
         ups
+    }
+
+    /// The level-downs the same check pushes: every adjacency improvement around `at` (centre included) whose stored
+    /// level is above the level its neighbours give, one per level lost.
+    pub(super) fn surrounding_level_downs(&self, at: Wc) -> Vec<Wc> {
+        let mut downs = Vec::new();
+        for dx in -1..=1 {
+            for dy in -1..=1 {
+                let c = Wc { x: at.x + dx, y: at.y + dy };
+                if !self.in_bounds(c) {
+                    continue;
+                }
+                let Some(tile) = self.tile(c) else { continue };
+                let Some(info) = self.t.improvement(tile.improvement) else { continue };
+                if info.data.adjacency_improvements.is_empty() || info.abilities.contains(&improvement_ability::PATINA)
+                {
+                    continue;
+                }
+                let Some(stored) = self.improvement_rt(c).map(|r| i32::from(r.level)) else { continue };
+                for _ in self.improvement_level(c)..stored {
+                    downs.push(c);
+                }
+            }
+        }
+        downs
     }
 
     /// An improvement level-up run from the action stack. It is dropped unrun when the improvement is no longer
@@ -476,6 +502,11 @@ impl Engine {
     /// loses the population the improvement's growth rewards gave for the level, as in the game.
     pub fn improvement_level_down(&mut self, at: Wc) {
         let Some(tile) = self.tile(at).copied() else { return };
+        // Retail's own check of the action: it only runs while the level the neighbours give is below the stored one.
+        let Some(stored) = self.improvement_rt(at).map(|r| i32::from(r.level)) else { return };
+        if self.improvement_level(at) >= stored {
+            return;
+        }
         if let Some(rt) = self.improvement_rt_mut(at) {
             rt.level = rt.level.saturating_sub(1);
         }
@@ -484,6 +515,14 @@ impl Engine {
         let ruling = tile.ruling_city;
         if pop > 0 && ruling.x >= 0 && ruling.y >= 0 && self.is_city(ruling) {
             self.add_population(ruling, -pop);
+        }
+        // Above version 103 the action ends with the surrounding-area check, so neighbours that gave their level
+        // through this one come down in turn.
+        if self.s.version > VERSION_LEVEL_UP_V103 {
+            let mut checks: Vec<Deferred> =
+                self.surrounding_level_ups(at).into_iter().map(Deferred::ImprovementLevelUp).collect();
+            checks.extend(self.surrounding_level_downs(at).into_iter().map(Deferred::ImprovementLevelDown));
+            self.deferred.extend(checks);
         }
     }
 
@@ -560,11 +599,16 @@ impl Engine {
         }
         drop(grid);
         // The walk reads the board as it was at the start of the turn; the resources it asked for land after it.
+        // Each new resource is its own action in retail, which ends with the surrounding-area check: the sanctuaries
+        // around it rise at once instead of at the owner's next turn start.
+        let mut created_ups: Vec<Deferred> = Vec::new();
         for at in attracted {
             if let Some(t) = self.tile_mut(at) {
                 t.resource = economy::GAME_RESOURCE;
             }
+            created_ups.extend(self.surrounding_level_ups(at).into_iter().map(Deferred::ImprovementLevelUp));
         }
+        walk.extend(created_ups);
         self.deferred.extend(walk);
         self.deferred.extend(peace);
         self.restore_climate_at_turn_start(me);
@@ -688,7 +732,7 @@ impl Engine {
     }
 
     /// `compute_score` for every player, in player order, from one pass over the tiles, fog and units.
-    fn all_scores(&self) -> Vec<i32> {
+    pub fn all_scores(&self) -> Vec<i32> {
         // Per player id: territory, improvement and unit points, and explored tiles.
         let mut points = [0i32; 256];
         let mut explored = [0i32; 256];
@@ -765,7 +809,17 @@ impl Engine {
         let humans = alive.iter().filter(|&&id| self.player(id).is_some_and(|p| !p.auto_play)).count();
         let no_rules = settings.turn_limit <= 0 && settings.score_limit <= 0 && !settings.win_by_capital;
         let ends = settings.win_by_extermination || no_rules || humans == 0 || matches!(settings.game_type, 1 | 4);
-        if ends && alive.len() <= 1 && self.s.players.iter().filter(|p| p.id != NATURE).count() > 1 {
+        let contested = self.s.players.iter().filter(|p| p.id != NATURE).count() > 1;
+        if ends && alive.len() <= 1 && contested {
+            self.queue_game_over();
+            return;
+        }
+        // Retail counts the living players who are not on auto-play before
+        // anything else, and in Multiplayer and Competitive games one is enough to end the game, whatever the number
+        // of living players that are on auto-play. This is how a resignation ends a two-player game. Retail also ends
+        // a game when none is left, but a game built here with every seat on auto-play (an AI-only match) has none from
+        // the start and must play on, so that case is not applied.
+        if contested && humans == 1 && matches!(settings.game_type, 1 | 4) {
             self.queue_game_over();
             return;
         }

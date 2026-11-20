@@ -19,9 +19,22 @@ First public release, under MIT OR Apache-2.0.
   `bench`.
 - Recorded games: a JSON form of a save (positions and commands only) that replays exactly like the save.
 - Python bindings (`python/`, built with maturin).
-- Speed: about 1.5 to 1.6 times polybots-engine's decisions per second on random play, both engines built the same
-  way ([docs/speed.md](docs/speed.md), with the harness in `tools/bench_polybots/`). The work behind it changed no
-  results: the `digest` example gives the same hash before and after.
+- Speed: about 1.4 to 1.6 times polybots-engine's decisions per second on random play, both engines built the same
+  way, and a faster copy of the game state ([docs/speed.md](docs/speed.md), with the harness in
+  `tools/bench_polybots/`). The work behind it changed no results: the `digest` example gives the same hash before
+  and after.
+- Copying a game: `GameState::clone` copies the unit, improvement and fog lists as blocks and clones only the items
+  that own memory, and the engine's small ordered maps are `FlatMap` (a sorted vector, `polytopia_sim::flat_map`)
+  instead of `BTreeMap`. `AiState::blocked_tiles` has that type now.
+- `Engine::is_legal` checks one command without building the whole legal list, and `Engine::query_scope` shares the
+  lookups that many questions about one unchanged position have in common. The built-in AI chooses a move in about
+  a quarter less time.
+- More rules found by replaying recorded games, each with a test under `tests/`: an area is explored nearest tile
+  first and the rest waits behind a pending city reward; a Build is accepted while a city reward is pending; the
+  Wealth and Network tasks are checked when the game checks them; a resignation ends a two-player Multiplayer or
+  Competitive game; sanctuaries and other improvements that take their level from their surroundings change level
+  at once; a bridge's record keeps its orientation; Aquarion's bubble, tentacle, flood and embark rules; Cymanti's
+  poison, algae and egg rules; infiltration rewards.
 - `TileExplorers::explorers` (the players who have explored a tile) is an `Explorers` value rather than a
   `Vec<u8>`: up to 14 ids are kept in place, so copying a game allocates nothing per tile. It dereferences to `[u8]`
   and has `push`, `clear`, `From<Vec<u8>>` and `FromIterator<u8>`; code that needs a `Vec<u8>` converts with

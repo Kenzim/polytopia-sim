@@ -231,9 +231,8 @@ impl Engine {
     }
 
     /// Explore the area around `at` from position `start` of retail's order. With `stoppable`, a city reward raised
-    /// by a tile lets one more explore action run and holds the rest: the level-up that the lighthouse's population
-    /// change leads to reaches the action stack one action after the explore that caused it. Returns the position the
-    /// held rest starts at.
+    /// by a tile (a lighthouse's population change levels a city up) holds the explore actions still queued behind it
+    /// until the reward is answered. Returns the position the held rest starts at.
     pub(super) fn explore_area(
         &mut self,
         player: u8,
@@ -245,32 +244,97 @@ impl Engine {
         let tile = self.tile(at)?;
         let village2 = crate::env_var!("CITY_SIGHT").is_ok() && tile.improvement == improvement::CITY;
         let radius = if tile.terrain == terrain::MOUNTAIN || village2 { sight.max(2) } else { sight };
-        // Retail walks the area column by column (x outer, y inner, the centre in its place) and queues one explore
-        // action per tile from the last tile to the first; the action stack then runs them first tile first, and each
-        // one queues its own meetings.
-        let side = (2 * radius + 1) as usize;
-        let mut left: Option<u8> = None;
-        for k in start..side * side {
-            if left == Some(0) {
-                return Some(k);
+        // Retail lists the area column by column (x outer, y inner, the centre in its place), skipping
+        // tiles off the map, and sorts the list by Manhattan distance with .NET's unstable introsort. It queues one
+        // explore action per tile from the last tile to the first; the action stack then runs them first tile first,
+        // and each one queues its own meetings.
+        let mut area: Vec<(i32, usize)> = Vec::with_capacity(((2 * radius + 1) * (2 * radius + 1)) as usize);
+        for dx in -radius..=radius {
+            for dy in -radius..=radius {
+                if let Some(i) = self.tile_index(Wc { x: at.x + dx, y: at.y + dy }) {
+                    area.push((dx.abs() + dy.abs(), i));
+                }
             }
-            let (dx, dy) = ((k / side) as i32 - radius, (k % side) as i32 - radius);
-            let Some(i) = self.tile_index(Wc { x: at.x + dx, y: at.y + dy }) else { continue };
+        }
+        crate::dotnet_sort::sort_by(&mut area, |a, b| a.0.cmp(&b.0));
+        for k in start..area.len() {
             let raised = self.reward_pending();
-            self.explore_tile(player, i);
-            match left {
-                Some(n) => left = Some(n - 1),
-                None if stoppable && !raised && self.reward_pending() => left = Some(1),
-                None => {}
+            self.explore_tile(player, area[k].1);
+            if stoppable && !raised && k + 1 < area.len() && self.reward_pending() {
+                return Some(k + 1);
             }
         }
         None
+    }
+
+    /// Explore the area round every tile of a move's path. A city reward raised by one of the explore actions holds
+    /// the rest until the reward is answered.
+    pub(super) fn explore_path(&mut self, player: u8, sight: i32, path: &[Wc]) {
+        if path.is_empty() || path.len() > EXPLORE_PATH_MAX || !(0..=i32::from(u8::MAX)).contains(&sight) {
+            for c in path {
+                self.explore_from(player, *c, sight);
+            }
+            return;
+        }
+        let mut run = ExploreRun {
+            player,
+            sight: sight as u8,
+            len: path.len() as u8,
+            next: 0,
+            area: 0,
+            path: [0; EXPLORE_PATH_MAX],
+        };
+        for (slot, c) in run.path.iter_mut().zip(path) {
+            match self.tile_index(*c).and_then(|i| u16::try_from(i).ok()) {
+                Some(i) => *slot = i,
+                None => return,
+            }
+        }
+        self.continue_explore(&mut run);
+    }
+
+    /// Walk the remaining tiles of `run`, holding what is left when a tile raises a city reward.
+    pub(super) fn continue_explore(&mut self, run: &mut ExploreRun) {
+        while run.next < run.len {
+            let start = usize::from(run.area);
+            if start == 0 && self.reward_pending() {
+                self.hold(Deferred::Explore(*run));
+                return;
+            }
+            let Some(at) = self.s.map.tiles.get(usize::from(run.path[usize::from(run.next)])).map(|t| t.coordinates)
+            else {
+                return;
+            };
+            if let Some(rest) = self.explore_area(run.player, at, i32::from(run.sight), start, true) {
+                run.area = rest as u16;
+                self.hold(Deferred::Explore(*run));
+                return;
+            }
+            run.area = 0;
+            run.next += 1;
+        }
     }
 
     pub fn explore_unit(&mut self, unit_id: u32) {
         let Some(u) = self.unit(unit_id) else { return };
         let (owner, at) = (u.owner, u.coordinates);
         let sight = self.sight_range(u);
-        self.explore_from(owner, at, sight);
+        self.explore_path(owner, sight, &[at]);
     }
+}
+
+/// Longest move path whose explore actions can be held under a city reward.
+pub const EXPLORE_PATH_MAX: usize = 16;
+
+/// The explore actions of a move still to run: the path as tile indices, the tile in progress (`next`) and where in the
+/// explore order of that tile the walk stopped (`area`, 0 when the tile has not started).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ExploreRun {
+    pub player: u8,
+    pub sight: u8,
+    /// Number of tiles of `path` in use.
+    pub len: u8,
+    pub next: u8,
+    pub area: u16,
+    pub path: [u16; EXPLORE_PATH_MAX],
 }

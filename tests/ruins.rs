@@ -91,3 +91,40 @@ fn swordsman_reward_spawns_a_veteran_on_the_ruin() {
     assert_eq!(examiner.promotion, start.promotion);
     assert!(!e.tile(at).unwrap().has_ruin);
 }
+
+/// Retail's explorer reward asks whether the player can reach the tiles around the ruin, and that test compares the
+/// tile's raw terrain with the player's unlocked movement terrains and nothing else: an ocean tile that is flooded or
+/// carries algae is still ocean there. A ruin in a ring of flooded ocean therefore never gives the explorer.
+///
+/// Evidence from the games: a ruin on the water, the ring around it flooded, and a free tech given where the engine
+/// gave the explorer.
+#[test]
+fn flooded_ocean_around_a_ruin_does_not_make_the_explorer_eligible() {
+    const OCEAN: i32 = 2;
+    let base = game();
+    let flooded = 1u16 << Engine::EFFECT_FLOODED;
+    let (mut control, mut ringed) = (0, 0);
+    for c in base.s.map.tiles.iter().filter(|t| is_water(t.terrain)).map(|t| t.coordinates).collect::<Vec<_>>() {
+        for (ring_terrain, ring_effect) in [(FIELD, 0), (OCEAN, flooded)] {
+            let mut e = base.clone();
+            let ring = near(c);
+            for t in e.s.map.tiles.iter_mut().filter(|t| ring.contains(&t.coordinates)) {
+                t.terrain = if t.coordinates == c { OCEAN } else { ring_terrain };
+                t.effects = if t.coordinates == c { 0 } else { ring_effect };
+            }
+            // A tile two steps out that player 1 has not explored, so that the explorer would qualify.
+            let unexplored = e.area(c, 2).into_iter().any(|n| !e.is_explored_at(1, n));
+            if !unexplored {
+                continue;
+            }
+            let reward = e.ruins_reward(1, c);
+            if ring_terrain == FIELD {
+                control += usize::from(reward == 3);
+            } else {
+                ringed += usize::from(reward == 3);
+            }
+        }
+    }
+    assert!(control > 0, "the control ring of fields gives the explorer somewhere");
+    assert_eq!(ringed, 0, "a ring of flooded ocean never does");
+}

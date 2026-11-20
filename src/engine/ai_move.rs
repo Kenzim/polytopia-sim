@@ -79,7 +79,7 @@ impl Engine {
         if *per_turn > 400 {
             cmd = Command::EndTurn;
         }
-        if !matches!(cmd, Command::EndTurn | Command::Stay { .. }) && !self.legal_commands().contains(&cmd) {
+        if !matches!(cmd, Command::EndTurn | Command::Stay { .. }) && !self.is_legal(&cmd) {
             cmd = Command::EndTurn;
         }
         let before = self.s.current_turn;

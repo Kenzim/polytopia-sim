@@ -59,3 +59,23 @@ fn resigning_an_unknown_player_changes_nothing() {
     assert!(e.resign(7).is_err());
     assert_eq!(e.s.current_command, command);
 }
+
+/// Retail's winner check counts the living players who are not on auto-play, and in
+/// Multiplayer and Competitive games one is enough to end the game, so a resignation ends a two-player game while
+/// the resigning player still holds a city.
+///
+/// Evidence from the games: a multiplayer game whose Resign was followed by the end-match command, saved as `Ended`.
+#[test]
+fn resigning_with_cities_left_ends_a_multiplayer_game() {
+    let mut e = board(true);
+    e.resign(1).unwrap();
+    assert_eq!(e.s.current_state, GameStatus::FinalTurn);
+}
+
+#[test]
+fn resigning_one_of_two_players_with_cities_leaves_a_local_game_going() {
+    let mut e = board(true);
+    e.s.settings.game_type = 0;
+    e.resign(1).unwrap();
+    assert_eq!(e.s.current_state, GameStatus::Started);
+}

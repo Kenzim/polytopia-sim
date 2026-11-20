@@ -7,7 +7,7 @@
 
 use super::ai_state::MilitaryStats;
 use super::*;
-use std::collections::BTreeMap;
+use crate::flat_map::FlatMap;
 
 /// Opinion types.
 pub mod opinion_type {
@@ -32,7 +32,7 @@ const LONGSIGHT: i32 = 4;
 
 #[derive(Debug, Clone, Default)]
 pub struct OpinionState {
-    pub reasons: BTreeMap<i32, f32>,
+    pub reasons: FlatMap<i32, f32>,
     pub total: f32,
 }
 
@@ -51,7 +51,7 @@ impl OpinionState {
 
 #[derive(Debug, Clone, Default)]
 pub struct OpinionManager {
-    pub opinions: BTreeMap<u8, OpinionState>,
+    pub opinions: FlatMap<u8, OpinionState>,
     /// Insertion order of `opinions` (the retail `Dictionary` enumerates in this order).
     pub order: Vec<u8>,
     /// Command counter of the last update; `None` while dirty.
@@ -60,7 +60,7 @@ pub struct OpinionManager {
 
 #[derive(Debug, Clone, Default)]
 pub struct OpinionStore {
-    pub managers: BTreeMap<u8, OpinionManager>,
+    pub managers: FlatMap<u8, OpinionManager>,
 }
 
 impl Engine {
@@ -437,7 +437,7 @@ impl Engine {
         }
         let state = mgr.opinions.entry(opponent).or_default();
         state.total = 0.0;
-        state.reasons = BTreeMap::new();
+        state.reasons = FlatMap::new();
         for (kind, sign) in [
             (BRAVE, 1.0f32),
             (LIKE, 1.0),

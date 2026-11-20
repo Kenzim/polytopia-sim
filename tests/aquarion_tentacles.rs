@@ -5,7 +5,8 @@
 //! player that is not at peace with it: the full battle damage of that unit against it. The tiles are recomputed after
 //! a move, a train, a disband, a freeze, a kill and the end of a turn that concerns a unit with Tentacles. A jelly that
 //! has just been trained also hits the units next to its city (full battle damage, as a move of a jelly does), and a jelly
-//! that a train pushes aside moves like any other (it hits its new neighbours and takes its ring with it). A ship that
+//! that a train pushes aside takes its ring with it but does not hit its new neighbours (the push is a move with the
+//! reason Push, which skips the area damage). A ship that
 //! lands its passenger on a Tentacle tile has the hit fixed against the ship and landed on the passenger.
 //!
 //! Evidence: in the Aquarion human games the server's boards show tentacle tiles (effect bit 3) in rings round jellies
@@ -157,13 +158,13 @@ fn a_jelly_that_is_trained_can_kill_a_weak_enemy_next_to_its_city() {
 }
 
 #[test]
-fn a_jelly_that_is_pushed_aside_moves_like_any_other_move() {
+fn a_jelly_that_is_pushed_aside_takes_its_ring_but_hits_nobody() {
     // A train onto the tile of an enemy jelly pushes it one step away (here to (5, 3)).
     let mut e = board(&[(1, JELLY, 2, 4, 2, ""), (2, MERMAID_WARRIOR, 1, 6, 3, ""), (3, MERMAID_WARRIOR, 1, 8, 0, "")]);
     let sw = e.tribe_unit(1, "swordsman").unwrap();
     e.train_on_occupied(1, sw, wc(4, 2), wc(0, 0));
     assert_eq!(e.unit_at(wc(5, 3)).map(|u| u.id), Some(1), "the jelly stepped aside");
-    assert!(e.unit(2).unwrap().health < 100, "the warrior next to the jelly's new tile was hit");
+    assert_eq!(e.unit(2).unwrap().health, 100, "the warrior next to the jelly's new tile is not hit by the push");
     assert_eq!(e.unit(3).unwrap().health, 100, "a warrior further away was not");
     let t = tentacle_tiles(&e);
     assert!(t.contains(&(6, 4)) && !t.contains(&(3, 1)), "the tentacles are round the new tile");

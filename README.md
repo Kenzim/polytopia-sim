@@ -6,8 +6,8 @@ Given the same seed and the same commands, a game plays out the same way every t
 
 It is meant for bots, analysis tools, map tools and AI research. It is checked against the real game: 44 recorded
 games replay command for command and end in the same state as the server's, and ten generated maps match the game's
-tile for tile (see [How it is checked](#how-it-is-checked)). It is fast: about 80,000 decisions per second on one
-core (random play on an 11 x 11 map), 1.5 to 1.6 times polybots-engine (see [Speed](#speed)).
+tile for tile (see [How it is checked](#how-it-is-checked)). It is fast: about 68,000 decisions per second on one
+core (random play on an 11 x 11 map, plain release build), 1.4 to 1.6 times polybots-engine (see [Speed](#speed)).
 
 This is an unofficial fan project. It is not affiliated with, endorsed by or connected to Midjiwan AB, the makers of
 The Battle of Polytopia. See [Licence and disclaimer](#licence-and-disclaimer).
@@ -118,7 +118,7 @@ The mechanics are written up in [docs/](docs/README.md), with reference tables g
   match the server's. The same games compare every move of the game's AI with the engine's AI; they agree on all but
   14 of about 7,300 moves, all by the one Elyrion AI player.
 - **Maps.** Ten maps captured from the game are rebuilt tile for tile from their seeds (`tests/map_capture.rs`).
-- **Rules.** About 420 tests, many of them pinning a rule found in a recorded game.
+- **Rules.** About 600 tests, many of them pinning a rule found in a recorded game.
 
 The recorded games are not in this repository because they hold other players' accounts; the tests that read them
 skip without them (see [Build and test](#build-and-test)).
@@ -131,14 +131,15 @@ processors, both engines built with Rust 1.92. Decisions per second:
 
 | | 11 x 11, 1 thread | 11 x 11, 48 threads | 16 x 16, 1 thread | 16 x 16, 48 threads |
 | --- | ---: | ---: | ---: | ---: |
-| polybots-engine, release build | 52,121 | 1,997,371 | 37,561 | 1,442,228 |
-| polytopia-sim, release build | 80,269 | 3,020,033 | 60,284 | 2,302,303 |
-| polybots-engine, tuned build | 66,314 | 2,628,139 | 46,863 | 1,747,684 |
-| polytopia-sim, tuned build | 103,980 | 3,828,428 | 74,999 | 2,829,444 |
+| polybots-engine, release build | 43,177 | 1,543,257 | 33,687 | 1,060,411 |
+| polytopia-sim, release build | 67,696 | 2,184,723 | 50,512 | 1,643,985 |
+| polybots-engine, tuned build | 62,476 | 1,860,792 | 38,083 | 1,288,913 |
+| polytopia-sim, tuned build | 85,108 | 2,669,810 | 61,797 | 2,065,897 |
 
-That is 1.5 to 1.6 times as many decisions per second, like for like. The tuned builds add full link-time
-optimisation, mimalloc and profile-guided optimisation, the same for both. polybots-engine still copies a game state
-about twice as fast. [docs/speed.md](docs/speed.md) has the method, per-operation
+That is 1.4 to 1.6 times as many decisions per second, like for like. The tuned builds add full link-time
+optimisation, mimalloc and profile-guided optimisation, the same for both. A game state copies in about a
+microsecond, faster than polybots-engine's. The machine was shared and busy during this run (20 November 2026), so
+read the ratios rather than the absolute figures. [docs/speed.md](docs/speed.md) has the method, per-operation
 timings, the caveats and a script to reproduce it.
 
 For your own machine, `polytopia-sim bench --size tiny --turn-limit 30` measures random playouts. For the most speed in

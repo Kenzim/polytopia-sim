@@ -30,6 +30,8 @@ pub struct InfiltrateRun {
     pub next: u8,
     pub pay: i32,
     pub tiles: [Wc; INFILTRATE_SPAWN_MAX],
+    /// The tile of a poisoned infiltrator, whose spores (and algae on water) grow after the spawns and payment.
+    pub spores: Option<Wc>,
 }
 
 impl Engine {
@@ -47,11 +49,12 @@ impl Engine {
         let owner = unit.owner;
         let city_owner = self.tile(target).map(|t| t.owner).unwrap_or(0);
         self.note_attack(owner, city_owner);
-        // Infiltrate: kill the infiltrator, then the reward for its type.
+        // Infiltrate: kill the infiltrator, then the reward for its type. The reward is queued above the spore
+        // actions of the kill, so it picks its spawn tiles before a poisoned infiltrator's tile turns to algae.
         let kind = unit.type_idx;
-        self.kill_unit(unit_id);
+        let spores = self.kill_unit_deferring_spores(unit_id);
         let reward = if kind == UNIT_POISON_INFILTRATOR { REWARD_POISON } else { REWARD_REBELLION };
-        self.infiltration_reward(owner, target, reward, kind);
+        self.infiltration_reward(owner, target, reward, kind, spores);
     }
 
     /// How much an infiltration reward values a tile.
@@ -88,12 +91,17 @@ impl Engine {
     }
 
     /// The infiltration reward.
-    fn infiltration_reward(&mut self, player: u8, city: Wc, reward: i32, unit_type: i32) {
-        let Some(tile) = self.tile(city).copied() else { return };
-        if tile.improvement == 0 || self.player(player).is_none() {
+    fn infiltration_reward(&mut self, player: u8, city: Wc, reward: i32, unit_type: i32, spores: Option<Wc>) {
+        let rt = self
+            .tile(city)
+            .filter(|t| t.improvement != 0 && self.player(player).is_some())
+            .and_then(|_| self.improvement_rt(city).cloned());
+        let Some(rt) = rt else {
+            if let Some(at) = spores {
+                self.spawn_spore_resource(at, Some(player));
+            }
             return;
-        }
-        let Some(rt) = self.improvement_rt(city).cloned() else { return };
+        };
         let level = i32::from(rt.level);
         let border = i32::from(rt.border_size);
         // Rebellion pays the city's raw production (queued first, so it runs after the spawns).
@@ -157,6 +165,10 @@ impl Engine {
         // The attack runs at once; the queued spawns run after it, index 0 first.
         if let Some(dmg) = battle {
             self.perform_attack_pub(Wc { x: -1, y: -1 }, city, dmg);
+            // A poison infiltration poisons the defender that survives the hit (from version 118).
+            if reward == REWARD_POISON && defender_survives && self.s.version > 0x75 {
+                self.poison_unit_action(player, city);
+            }
         }
         let mut run = InfiltrateRun {
             player,
@@ -167,6 +179,7 @@ impl Engine {
             next: 0,
             pay,
             tiles: [city; INFILTRATE_SPAWN_MAX],
+            spores,
         };
         for (at, _) in sorted.into_iter().take(count.min(INFILTRATE_SPAWN_MAX)) {
             run.tiles[run.len as usize] = at;
@@ -190,6 +203,7 @@ impl Engine {
         let abilities = self.unit_info(&u).map(|i| i.abilities.clone()).unwrap_or_default();
         let settings = self.path_settings(&u, &allowed, &abilities, false);
         let Some(t) = self.tile(at) else { return false };
+        let blocked = |i| self.blocked_bridge_direction(player, i);
         crate::rules::path::is_tile_accessible(
             &self.s,
             t,
@@ -197,11 +211,11 @@ impl Engine {
             &settings,
             &|i| self.is_wetland_index(i),
             &|k, a| self.t.has_improvement_ability(k, a),
-            &|_| 8,
+            &blocked,
         )
     }
 
-    /// Run the queued spawns of an infiltration reward, then the payment. Each spawn is an action of its own on
+    /// Run the queued spawns of an infiltration reward, then the payment, then the infiltrator's spores. Each spawn is an action of its own on
     /// retail's stack: a city reward raised by one (the unit's sight can reveal a map corner, which levels a city up)
     /// holds the spawns and the payment still to come until the reward is answered.
     pub(super) fn continue_infiltrate(&mut self, run: &mut InfiltrateRun) {
@@ -236,7 +250,7 @@ impl Engine {
                     self.embark_pub(id);
                 }
             }
-            if self.reward_pending() && (run.next < run.len || run.pay > 0) {
+            if self.reward_pending() && (run.next < run.len || run.pay > 0 || run.spores.is_some()) {
                 // What is left sits under the score and reward actions this spawn raised.
                 self.hold_at.get_or_insert(below);
                 self.hold(Deferred::Infiltrate(*run));
@@ -250,6 +264,14 @@ impl Engine {
             }
             self.add_currency(run.player, run.pay);
             run.pay = 0;
+        }
+        if let Some(at) = run.spores {
+            if self.reward_pending() {
+                self.hold(Deferred::Infiltrate(*run));
+                return;
+            }
+            run.spores = None;
+            self.spawn_spore_resource(at, Some(run.player));
         }
     }
 

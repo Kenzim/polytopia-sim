@@ -150,3 +150,18 @@ fn replayed_weekly_games_embark_the_units_that_step_from_algae_onto_a_port() {
     }
     eprintln!("{checked} games checked");
 }
+
+/// Retail's embark test asks whether the target tile is water or wetland, so a port on land under the Flooded effect
+/// (Aquarion) takes a land unit aboard like a port on water. Corpus: games 1e8583f3 and f66e39e7, where the server
+/// accepts a Disembark for a giant that stepped onto such a port.
+#[test]
+fn a_land_unit_steps_onto_a_port_on_flooded_land_and_embarks() {
+    let mut e = board(false);
+    let t = e.s.map.tiles.iter_mut().find(|t| t.coordinates == wc(3, 1)).unwrap();
+    t.terrain = 3;
+    t.effects |= 1 << 1;
+    assert_eq!(e.will_embark(e.unit(1).unwrap(), wc(3, 1)), 1);
+    e.apply(Command::Move { unit: 1, to: wc(3, 1) }).expect("the move is legal");
+    let boat = boat_of(&e, 1).expect("the warrior is carried by a boat");
+    assert!(e.legal_commands().contains(&Command::Disembark { unit: boat }));
+}

@@ -24,11 +24,60 @@ impl Engine {
         self.legal_commands_inner()
     }
 
+    /// Whether `cmd` is in [`Engine::legal_commands`], without building the whole list: only the commands of the
+    /// unit, city or kind `cmd` names are generated, by the same code.
+    pub fn is_legal(&self, cmd: &Command) -> bool {
+        let _grid = self.unit_grid_scope();
+        let _zoc = self.zoc_scope();
+        if self.is_over() {
+            return false;
+        }
+        let me = self.current_player();
+        if self.pending_trigger(me).is_some() {
+            return self.legal_commands_inner().contains(cmd);
+        }
+        let mut out = Vec::with_capacity(32);
+        match *cmd {
+            Command::EndTurn => return true,
+            // Every command `unit_commands` adds for a unit carries that unit's id, bar ClearTileEffect.
+            Command::Move { unit, .. }
+            | Command::Attack { unit, .. }
+            | Command::Capture { unit, .. }
+            | Command::Promote { unit }
+            | Command::Recover { unit }
+            | Command::HealOthers { unit }
+            | Command::Explode { unit }
+            | Command::Disband { unit }
+            | Command::Upgrade { unit, .. }
+            | Command::ExamineRuins { unit }
+            | Command::Swarm { unit }
+            | Command::Boost { unit }
+            | Command::Disembark { unit }
+            | Command::FreezeArea { unit }
+            | Command::BreakIce { unit } => {
+                for u in self.s.units.iter().filter(|u| u.owner == me && u.id == unit) {
+                    self.unit_commands(u, &mut out);
+                }
+            }
+            Command::Train { city, .. } => {
+                if self.city_tiles(me).contains(&city) {
+                    self.train_commands(me, city, &mut out);
+                }
+            }
+            Command::Build { .. } => self.build_commands(me, &mut out),
+            Command::Research { tech } => {
+                let currency = self.player(me).map(|p| p.currency).unwrap_or(0);
+                return self.researchable(me).contains(&tech) && currency >= self.tech_price(me, tech);
+            }
+            _ => return self.legal_commands_inner().contains(cmd),
+        }
+        out.contains(cmd)
+    }
+
     /// Whether the game accepts `cmd` now: every legal command, plus a Destroy or ClearTileEffect that only passes the command's
-    /// own check, a Move of a unit that has a leader and a repeated Decompose. Retail's decompose
-    /// command only needs an improvement on the tile, and its action adds the Decomposing effect only when it is
-    /// missing, so a second Decompose on the same improvement is accepted and changes nothing; the improvement's
-    /// ability list stops offering it, so it is not in [`Engine::legal_commands`].
+    /// own check, a Move of a unit that has a leader and a Decompose the improvement's ability list does not offer.
+    /// Retail's decompose command only needs the current player and an improvement on the tile (a lighthouse, a city
+    /// or one already decomposing included), and its action adds the Decomposing effect only when it is missing.
     pub fn accepts(&self, cmd: &Command) -> bool {
         if self.legal_commands().contains(cmd) {
             return true;
@@ -38,9 +87,7 @@ impl Engine {
             Command::Decompose { at } => {
                 !self.is_over()
                     && self.pending_trigger(me).is_none()
-                    && self.has_player_ability(me, player_ability::DECOMPOSE)
-                    && self.can_destroy(me, at)
-                    && self.improvement_rt(at).is_some_and(|r| r.decomposing)
+                    && self.tile(at).is_some_and(|t| t.improvement != 0)
             }
             // The destroy command's own check needs only the current player, no pending trigger and an improvement
             // on the tile; the Destroy ability and the destructable test belong to the improvement's ability list.
@@ -66,6 +113,15 @@ impl Engine {
                             && !u.frozen
                             && self.move_path(u, to).is_some_and(|path| path.len() > 1)
                     })
+            }
+            // The build command's own check ignores a pending city reward (only the client's action manager waits for
+            // it), so a build sent before the reward is answered is accepted.
+            Command::Build { .. } => {
+                !self.is_over() && self.pending_trigger(me).is_some_and(|t| t.peace_from.is_none()) && {
+                    let mut out = Vec::new();
+                    self.build_commands(me, &mut out);
+                    out.contains(cmd)
+                }
             }
             _ => false,
         }
@@ -859,7 +915,9 @@ impl Engine {
             Command::Disband { unit } => {
                 if let Some(u) = self.unit(unit).cloned() {
                     let (cost, score) = (self.full_cost(&u), self.unit_score(&u));
+                    let before = self.player(me).map_or(0, |p| p.currency);
                     crate::rules::commands::disband(&mut self.s, me, u.coordinates, cost, score, true);
+                    self.check_wealth_after_refund(me, before);
                     if self.has_ability(&u, unit_ability::TENTACLES) {
                         self.update_tentacles();
                     }
@@ -899,7 +957,9 @@ impl Engine {
                 for at in crate::rules::commands::break_peace(&mut self.s, me, with) {
                     let Some(u) = self.unit_at(at).cloned() else { continue };
                     let (cost, score) = (self.full_cost(&u), self.unit_score(&u));
+                    let before = self.player(me).map_or(0, |p| p.currency);
                     crate::rules::commands::disband(&mut self.s, me, at, cost, score, get_paid);
+                    self.check_wealth_after_refund(me, before);
                 }
             }
             Command::EstablishEmbassy { with } => {
@@ -994,9 +1054,7 @@ impl Engine {
         }
         // Explore along the path.
         let sight = self.sight_range(&unit);
-        for c in &path {
-            self.explore_from(unit.owner, *c, sight);
-        }
+        self.explore_path(unit.owner, sight, &path);
         let skater = abilities.contains(&unit_ability::SKATE);
         let to_ice = self.tile(to).map(|t| t.terrain == terrain::ICE).unwrap_or(false);
         {
@@ -1029,8 +1087,7 @@ impl Engine {
             }
         }
         self.check_step_on_poison(&unit, to);
-        self.check_bubble_step(unit_id, to);
-        self.land_tentacle_hit(to, tentacle_hit);
+        self.tentacle_hit_then_bubble_step(unit_id, to, tentacle_hit);
         // The autofreeze of a Mooni or Gaami: a move that is not a push freezes the tiles and units round the destination.
         if abilities.contains(&unit_ability::AUTO_FREEZE) {
             self.freeze_area(unit.owner, to, 1, true, false);
@@ -1066,14 +1123,35 @@ impl Engine {
     /// Waterways tech) whose Amphibious unit stands on a flooded tile gives the unit the Bubble effect, which adds one
     /// movement point. Retail runs it after the poison step.
     pub(super) fn check_bubble_step(&mut self, unit_id: u32, at: Wc) {
-        let Some(i) = self.unit_index(unit_id) else { return };
-        let unit = &self.s.units[i];
-        if !self.has_player_ability(unit.owner, player_ability::BUBBLE) {
-            return;
+        if self.bubble_step_due(unit_id, at) {
+            self.give_bubble(unit_id);
         }
-        if self.has_effect(at, Self::EFFECT_FLOODED) && self.has_ability(unit, unit_ability::AMPHIBIOUS) && !unit.bubble
-        {
+    }
+
+    /// Whether the bubble step queues a Bubble action: retail looks at the unit's Bubble effect when it
+    /// queues the action, not when the action runs.
+    fn bubble_step_due(&self, unit_id: u32, at: Wc) -> bool {
+        let Some(unit) = self.unit(unit_id) else { return false };
+        self.has_player_ability(unit.owner, player_ability::BUBBLE)
+            && self.has_effect(at, Self::EFFECT_FLOODED)
+            && self.has_ability(unit, unit_ability::AMPHIBIOUS)
+            && !unit.bubble
+    }
+
+    fn give_bubble(&mut self, unit_id: u32) {
+        if let Some(i) = self.unit_index(unit_id) {
             self.s.units[i].bubble = true;
+        }
+    }
+
+    /// The tentacle hit and the bubble step of a move, in the order the action stack runs them: the bubble step is
+    /// decided before the hit lands (a unit that already had the bubble queues nothing, so the hit takes it away) and
+    /// gives the bubble after it.
+    pub(super) fn tentacle_hit_then_bubble_step(&mut self, unit_id: u32, to: Wc, hit: Option<(u8, Wc, i32)>) {
+        let due = self.bubble_step_due(unit_id, to);
+        self.land_tentacle_hit(to, hit);
+        if due {
+            self.give_bubble(unit_id);
         }
     }
 
@@ -1215,7 +1293,7 @@ impl Engine {
     /// Poison action: up to version 101 only the unit on the target tile gains Poisoned.
     /// After that it also poisons the unit's passenger, and an acting player with the Cute skin
     /// (19) adds Charmed. There is no poison resistance check here.
-    fn poison_unit_action(&mut self, player: u8, at: Wc) {
+    pub(super) fn poison_unit_action(&mut self, player: u8, at: Wc) {
         let new = self.s.version > 0x65;
         let charm = new && self.player_runtime(player).is_some_and(|p| p.skin == 19);
         let Some(i) = self.s.units.iter().position(|u| u.coordinates == at) else { return };
@@ -1482,7 +1560,18 @@ impl Engine {
         if !self.has_ability(&boat, unit_ability::PROTECT) {
             p.health = boat.health;
         }
+        let (id, owner) = (p.id, p.owner);
+        let age = self.s.current_turn.wrapping_sub(u32::from(p.created_turn));
+        let grows = self.has_ability(&p, unit_ability::GROW);
         self.s.units[i] = p;
+        // A unit that grows and lands more than two turns after it was made grows up at once: a free upgrade,
+        // which takes a unit id.
+        if grows && age > 2 {
+            let into = self.unit(id).and_then(|u| self.unlocked_upgrades_for(owner, u).first().copied());
+            if let Some(into) = into {
+                self.upgrade_unit(owner, id, into, 0);
+            }
+        }
     }
 
     /// Diplomacy changes from an attack: records the attack turns, then queues
@@ -1612,6 +1701,11 @@ impl Engine {
         }
         let origin = attacker.coordinates;
         self.s.units[ai].direction = Self::direction_of(origin, target);
+        // Retail's attack queues the flood for a Drench attacker whether or not a unit stands on the target (the last
+        // action queued, so it runs first); the flood only takes a floodable tile.
+        if self.s.version > VERSION_DRENCH_FLOODS && abilities.contains(&unit_ability::DRENCH) {
+            self.flood_tile_action(attacker.owner, target);
+        }
 
         // Retail builds the splash actions while it builds the attack, from the units as they stand before the damage
         // runs, so a victim that changes type when the attack kills its leader (a centipede segment that becomes the
@@ -1702,6 +1796,10 @@ impl Engine {
                         self.after_attack_flags(unit_id, killed);
                         self.embark(unit_id);
                     }
+                    // The step is a move, so a unit with the Algae ability leaves its trail on the tiles it leaves and reaches.
+                    if abilities.contains(&unit_ability::ALGAE) {
+                        self.algae_trail(attacker.owner, &[origin, target]);
+                    }
                     // The step is a move action like any other, so it checks for poison on the tile it steps into. The
                     // check is the mover's, as in a move; the poison then hits whatever stands on the tile, so a
                     // passenger let off (or a boat taken on) carries it although the mover's id is gone.
@@ -1712,8 +1810,7 @@ impl Engine {
                     }
                     // The rest of the move action: the bubble step, a tentacle hit on a Tentacle tile, the bubble lost on dry
                     // land, the tentacles of a unit with Tentacles, and the flood of a unit with Autoflood.
-                    self.check_bubble_step(unit_id, target);
-                    self.land_tentacle_hit(target, tentacle_hit);
+                    self.tentacle_hit_then_bubble_step(unit_id, target, tentacle_hit);
                     self.drop_bubble_on_dry_land(unit_id, target);
                     if abilities.contains(&unit_ability::TENTACLES) {
                         self.update_tentacles();
@@ -1881,7 +1978,7 @@ impl Engine {
                     &settings,
                     |i| self.is_wetland_index(i),
                     |kind, ability| self.t.has_improvement_ability(kind, ability),
-                    |_| 8,
+                    |i| self.blocked_bridge_direction(occ.owner, i),
                     |a, b| self.step_cost(&occ, &abilities, a, b),
                 );
                 if found.is_some() {
@@ -1900,10 +1997,7 @@ impl Engine {
                     }
                     self.explore_unit(occ.id);
                     let tentacle_hit = self.tentacle_hit(occ.id, spot);
-                    // Tentacles hit the neighbours of the new tile, as in any move.
-                    if abilities.contains(&unit_ability::TENTACLES) {
-                        self.area_damage(occ.id);
-                    }
+                    // The move runs with the reason Push, which skips the Stomp / Tentacles area damage.
                     match embark {
                         1 => self.embark(occ.id),
                         2 => self.disembark(occ.id),
@@ -1942,15 +2036,15 @@ impl Engine {
     }
 
     /// The rest of the move action that a push runs (retail queues a move with the reason Push, which differs from a
-    /// command's move only in not freezing round the destination and not using up the unit): poison, the bubble step,
+    /// command's move only in not freezing round the destination, not hitting the neighbours with Stomp or Tentacles
+    /// and not using up the unit): poison, the bubble step,
     /// a tentacle hit, the bubble lost on dry land, the tentacles and the flood of the unit.
     fn finish_push_step(&mut self, occ: &UnitState, abilities: &[i32], spot: Wc, tentacle_hit: Option<(u8, Wc, i32)>) {
         if abilities.contains(&unit_ability::ALGAE) {
             self.algae_trail(occ.owner, &[occ.coordinates, spot]);
         }
         self.check_step_on_poison(occ, spot);
-        self.check_bubble_step(occ.id, spot);
-        self.land_tentacle_hit(spot, tentacle_hit);
+        self.tentacle_hit_then_bubble_step(occ.id, spot, tentacle_hit);
         self.drop_bubble_on_dry_land(occ.id, spot);
         if abilities.contains(&unit_ability::TENTACLES) {
             self.update_tentacles();
@@ -2046,7 +2140,17 @@ impl Engine {
     /// (run last-in first-out): the spore actions, then an upgrade (owner, centipede, follower tile, cost 0), which
     /// turns the follower into a new head. Score comes from `refresh_scores`. A dead unit with Tentacles takes its tentacle tiles with it.
     pub(super) fn kill_unit(&mut self, unit_id: u32) {
-        let Some(victim) = self.unit(unit_id).cloned() else { return };
+        self.kill_unit_with_spores(unit_id, true);
+    }
+
+    /// `kill_unit`, leaving a poisoned unit's spores to the caller: returns the tile they are owed on. The caller
+    /// grows them once the actions it queues above them have run.
+    pub(super) fn kill_unit_deferring_spores(&mut self, unit_id: u32) -> Option<Wc> {
+        self.kill_unit_with_spores(unit_id, false)
+    }
+
+    fn kill_unit_with_spores(&mut self, unit_id: u32, spores_now: bool) -> Option<Wc> {
+        let victim = self.unit(unit_id).cloned()?;
         let follower =
             if victim.follower != 0 { self.unit_index(victim.follower).map(|j| self.s.units[j].id) } else { None };
         if let Some(f) = follower.and_then(|f| self.unit_index(f)) {
@@ -2062,12 +2166,16 @@ impl Engine {
         if self.has_ability(&victim, unit_ability::TENTACLES) {
             self.update_tentacles();
         }
-        if victim.poisoned {
-            self.spawn_spore_resource(victim.coordinates, Some(victim.owner));
+        let owed = victim.poisoned.then_some(victim.coordinates);
+        if spores_now {
+            if let Some(at) = owed {
+                self.spawn_spore_resource(at, Some(victim.owner));
+            }
         }
         if let Some(f) = follower {
             self.upgrade_unit(victim.owner, f, 33, 0);
         }
+        owed.filter(|_| !spores_now)
     }
 
     /// Spawn spores on a dead unit's tile (version > 114): a spore resource and, on water,
@@ -2201,7 +2309,7 @@ impl Engine {
             &settings,
             &|i| self.is_wetland_index(i),
             &|k, a| self.t.has_improvement_ability(k, a),
-            &|_| 8,
+            &|i| self.blocked_bridge_direction(owner, i),
         )
     }
 
@@ -2278,6 +2386,11 @@ impl Engine {
         let owner = self.s.units[i].owner;
         // The capture command exhausts the capturer.
         self.make_exhausted(i);
+        // The command queues a reveal of the capturer when it is Invisible (from version 113), so a cloak that
+        // takes a city stands visible again.
+        if self.s.version > 0x70 {
+            self.s.units[i].invisible = false;
+        }
         let old_owner = self.tile(at).map(|t| t.owner).unwrap_or(0);
         // City capture: the previous owner's units lose this city as their home; the capturer moves in, unless it
         // is `independent` (a Polytaur, a dagger), which keeps its home and so takes none of the city's unit slots.
@@ -2372,6 +2485,13 @@ impl Engine {
                 let level = self.improvement_level(at);
                 if let Some(rt) = self.improvement_rt_mut(at) {
                     rt.level = level.max(0) as u16;
+                }
+            }
+            // A bridge's level field is its orientation: 1 when it runs horizontally (retail stores the
+            // orientation there when the bridge is built).
+            if kind == improvement::BRIDGE && self.blocked_bridge_direction(me, idx) == 3 {
+                if let Some(rt) = self.improvement_rt_mut(at) {
+                    rt.level = 1;
                 }
             }
         }
@@ -2510,18 +2630,21 @@ impl Engine {
     /// stack below the build's own actions, which have already run, and run from the top, so the last tile in area
     /// order levels up first. When a city reward is pending they wait below the actions the build already held.
     fn build_level_ups(&mut self, at: Wc, me: u8) {
-        let ups = self.surrounding_level_ups(at);
+        let mut ups: Vec<Deferred> =
+            self.surrounding_level_ups(at).into_iter().map(Deferred::ImprovementLevelUp).collect();
+        // A consumed resource (hunting) takes the level of the sanctuaries around it down again.
+        ups.extend(self.surrounding_level_downs(at).into_iter().map(Deferred::ImprovementLevelDown));
         if ups.is_empty() {
             return;
         }
         if self.pending_trigger(me).is_some() {
-            for c in ups.into_iter().rev() {
-                self.hold(Deferred::ImprovementLevelUp(c));
+            for d in ups.into_iter().rev() {
+                self.hold(d);
             }
             return;
         }
         let base = self.deferred.len();
-        self.deferred.extend(ups.into_iter().map(Deferred::ImprovementLevelUp));
+        self.deferred.extend(ups);
         self.run_deferred_above(base);
     }
 
@@ -2860,6 +2983,10 @@ impl Engine {
             t.effects |= 1 << Self::EFFECT_FLOODED;
         }
         self.new_city_runtime(at, 0);
+        // The server's record of a lost city keeps `founded` at 0.
+        if let Some(rt) = self.improvement_rt_mut(at) {
+            rt.founded = 0;
+        }
         let tribe = self.player(owner).map(|p| p.tribe).unwrap_or(0);
         if let Some(modifiers) = self.t.logic.tribe_by_idx(tribe).map(crate::map::terrain::tribe_continent_modifiers) {
             let spawns = crate::map::generate::resource_spawns(&self.t.logic);

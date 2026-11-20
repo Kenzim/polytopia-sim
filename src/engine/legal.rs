@@ -40,7 +40,10 @@ impl Engine {
 
     fn will_embark_onto(&self, e: Option<EmbarkCtx>, d: &Tile) -> i32 {
         let Some(EmbarkCtx { aquatic, carrier, chained, owner, can_embark }) = e else { return 0 };
-        let dest_water = path::is_water(d.terrain);
+        // The destination counts as water for a flooded or algae-covered land tile too (retail's embark test asks
+        // whether the tile is water or wetland); a city stays land for a transport landing.
+        let dest_water =
+            path::is_water(d.terrain) || (d.improvement != improvement::CITY && self.is_wetland_index(d.index));
         if aquatic && (!carrier || dest_water) {
             return 0;
         }
@@ -192,13 +195,15 @@ impl Engine {
     /// Destinations the unit can reach this turn.
     pub fn move_destinations(&self, unit: &UnitState) -> Vec<Wc> {
         let Some(info) = self.unit_info(unit) else { return Vec::new() };
-        if unit.moved || unit.frozen || unit.leader != 0 || info.data.movement == 0 {
+        // The movement budget counts Boosted, Swift and Bubble, so a unit whose data movement is 0 (a swarmed egg) can
+        // still step.
+        let movement = self.unit_movement(unit);
+        if unit.moved || unit.frozen || unit.leader != 0 || movement <= 0 {
             return Vec::new();
         }
         let allowed = self.move_terrain_list(unit);
         let abilities = info.abilities.as_slice();
         let settings = self.path_settings(unit, &allowed, abilities, false);
-        let movement = self.unit_movement(unit);
         if crate::env_var!("MOVE_DBG").ok().and_then(|v| v.parse::<u32>().ok()) == Some(unit.id) {
             for n in self.neighbors(unit.coordinates) {
                 let (Some(t), Some(o)) = (self.tile(n), self.tile(unit.coordinates)) else { continue };
@@ -209,7 +214,7 @@ impl Engine {
                     &settings,
                     &|i| self.is_wetland_index(i),
                     &|k, a| self.t.has_improvement_ability(k, a),
-                    &|_| 8,
+                    &|i| self.blocked_bridge_direction(unit.owner, i),
                 );
                 eprintln!(
                     "MOVEDBG unit {} to ({},{}) terrain {} owner {} acc {} cost {} allowed {:?} req_port {}",
@@ -235,7 +240,7 @@ impl Engine {
             None,
             |i| self.is_wetland_index(i),
             |kind, ability| self.t.has_improvement_ability(kind, ability),
-            |_| 8,
+            |i| self.blocked_bridge_direction(unit.owner, i),
             |a, b| self.step_cost_with(&step, a, b),
             Some(path::MIN_MOVEMENT_COST),
         );
@@ -308,7 +313,7 @@ impl Engine {
             &settings,
             |i| self.is_wetland_index(i),
             |kind, ability| self.t.has_improvement_ability(kind, ability),
-            |_| 8,
+            |i| self.blocked_bridge_direction(unit.owner, i),
             |a, b| self.step_cost_with(&step, a, b),
         )?;
         p.reverse();
@@ -415,7 +420,7 @@ impl Engine {
             &settings,
             |i| self.is_wetland_index(i),
             |kind, ability| self.t.has_improvement_ability(kind, ability),
-            |_| 8,
+            |i| self.blocked_bridge_direction(attacker.owner, i),
             |a, b| self.step_cost_with(&step, a, b),
         )
         .is_some()
@@ -462,6 +467,20 @@ struct ZocShare {
     abilities: Vec<(u8, Option<u64>)>,
     /// Per player, [`Engine::movement_terrain_list`].
     movement: Vec<(u8, TerrainList)>,
+    /// Per tile index asked for, [`Engine::city_threat_level`].
+    city_threats: Vec<(i32, f32)>,
+    /// [`Engine::position_neighbors`] of one player, per tile asked for.
+    neighbors: Option<NeighborShare>,
+}
+
+/// The neighbour lists kept for one player while a position is shared.
+struct NeighborShare {
+    player: u8,
+    /// Per tile index: 0, or 1 + the position in `spans` of the tile's list.
+    slot: Vec<u32>,
+    /// Per list: tile index, start in `items`, length.
+    spans: Vec<(i32, u32, u8)>,
+    items: Vec<crate::ai::score::PositionNeighbor>,
 }
 
 thread_local! {
@@ -474,23 +493,91 @@ pub(crate) struct ZocScope<'a>(std::marker::PhantomData<&'a GameState>, bool);
 impl Drop for ZocScope<'_> {
     fn drop(&mut self) {
         if self.1 {
-            ZOC_SHARE.with(|z| *z.borrow_mut() = None);
+            zoc_share_end();
         }
     }
+}
+
+/// End the sharing a [`Engine::zoc_share_begin`] that returned true started.
+pub(crate) fn zoc_share_end() {
+    ZOC_SHARE.with(|z| *z.borrow_mut() = None);
 }
 
 impl Engine {
     /// Start sharing zone-of-control maps for this state until the scope ends; nested scopes do nothing.
     pub(crate) fn zoc_scope(&self) -> ZocScope<'_> {
-        let began = ZOC_SHARE.with(|z| {
+        ZocScope(std::marker::PhantomData, self.zoc_share_begin())
+    }
+
+    /// [`Engine::zoc_scope`] without the borrow, for a stretch that holds the engine mutably and changes nothing the
+    /// shared values are made from (units, relations, techs). Returns whether sharing began here; the caller then
+    /// ends it with [`zoc_share_end`].
+    pub(crate) fn zoc_share_begin(&self) -> bool {
+        ZOC_SHARE.with(|z| {
             let mut z = z.borrow_mut();
             if z.is_some() {
                 return false;
             }
-            *z = Some(ZocShare { state: &self.s, maps: Vec::new(), abilities: Vec::new(), movement: Vec::new() });
+            *z = Some(ZocShare {
+                state: &self.s,
+                maps: Vec::new(),
+                abilities: Vec::new(),
+                movement: Vec::new(),
+                city_threats: Vec::new(),
+                neighbors: None,
+            });
             true
-        });
-        ZocScope(std::marker::PhantomData, began)
+        })
+    }
+
+    /// Panic unless every value shared for this state is what the state gives now.
+    #[cfg(feature = "grid_check")]
+    pub(crate) fn zoc_share_check(&self) {
+        let Some(share) = ZOC_SHARE.with(|z| z.borrow_mut().take()) else { return };
+        if !std::ptr::eq(share.state, &self.s) {
+            ZOC_SHARE.with(|z| *z.borrow_mut() = Some(share));
+            return;
+        }
+        for (player, leaders_exempt, map) in &share.maps {
+            assert_eq!(
+                **map,
+                path::zoc_map(&self.s, *player, *leaders_exempt),
+                "stale zone-of-control map of player {player}"
+            );
+        }
+        for (player, list) in &share.movement {
+            assert_eq!(
+                list.to_vec(),
+                self.unlocked_movement_terrain_of(*player).to_vec(),
+                "stale movement terrain of player {player}"
+            );
+        }
+        if let Some(kept) = &share.neighbors {
+            for &(index, start, len) in &kept.spans {
+                let mut now = Vec::new();
+                self.position_neighbors(kept.player, self.s.map.tiles[index as usize].coordinates, &mut now);
+                assert_eq!(
+                    kept.items[start as usize..start as usize + usize::from(len)],
+                    now[..],
+                    "stale position neighbours of tile {index}"
+                );
+            }
+        }
+        for &(index, level) in &share.city_threats {
+            let now = self.city_threat_level_of(&self.s.map.tiles[index as usize]);
+            assert_eq!(level.to_bits(), now.to_bits(), "stale city threat level of tile {index}");
+        }
+        for &(player, bits) in &share.abilities {
+            if let Some(bits) = bits {
+                for ability in 0..64 {
+                    let has = self.techs(player).iter().any(|&tech| {
+                        self.t.tech_info(tech).is_some_and(|i| i.ability_mask.contains(&i.abilities, ability))
+                    });
+                    assert_eq!(bits & (1 << ability) != 0, has, "stale ability {ability} of player {player}");
+                }
+            }
+        }
+        ZOC_SHARE.with(|z| *z.borrow_mut() = Some(share));
     }
 
     /// `path::zoc_map`, taken from the active [`ZocScope`] when there is one for this state.
@@ -532,6 +619,77 @@ impl Engine {
             share.abilities.push((player, bits));
             bits
         })
+    }
+
+    /// Add the neighbour list kept for `(player, tile)` in the active [`ZocScope`] to `out`; false when there is
+    /// none (no scope for this state, another player's lists are kept, or the tile has not been asked for).
+    pub(crate) fn shared_position_neighbors(
+        &self,
+        player: u8,
+        index: i32,
+        out: &mut Vec<crate::ai::score::PositionNeighbor>,
+    ) -> bool {
+        ZOC_SHARE.with(|z| {
+            let z = z.borrow();
+            let Some(kept) = z
+                .as_ref()
+                .filter(|share| std::ptr::eq(share.state, &self.s))
+                .and_then(|share| share.neighbors.as_ref())
+            else {
+                return false;
+            };
+            if kept.player != player {
+                return false;
+            }
+            match kept.slot[index as usize] {
+                0 => false,
+                at => {
+                    let (_, start, len) = kept.spans[at as usize - 1];
+                    out.extend_from_slice(&kept.items[start as usize..start as usize + usize::from(len)]);
+                    true
+                }
+            }
+        })
+    }
+
+    /// Keep a neighbour list for the rest of the active [`ZocScope`], if there is one for this state. The lists of
+    /// the first player asked for are kept; other players' are not.
+    pub(crate) fn share_position_neighbors(&self, player: u8, index: i32, list: &[crate::ai::score::PositionNeighbor]) {
+        ZOC_SHARE.with(|z| {
+            let mut z = z.borrow_mut();
+            let Some(share) = z.as_mut().filter(|share| std::ptr::eq(share.state, &self.s)) else { return };
+            let kept = share.neighbors.get_or_insert_with(|| NeighborShare {
+                player,
+                slot: vec![0; self.s.map.tiles.len()],
+                spans: Vec::new(),
+                items: Vec::new(),
+            });
+            if kept.player != player || kept.slot[index as usize] != 0 {
+                return;
+            }
+            kept.spans.push((index, kept.items.len() as u32, list.len() as u8));
+            kept.items.extend_from_slice(list);
+            kept.slot[index as usize] = kept.spans.len() as u32;
+        });
+    }
+
+    /// The city threat level kept for the tile in the active [`ZocScope`]; `None` outside one for this state or
+    /// when the tile has not been asked for.
+    pub(crate) fn shared_city_threat(&self, index: i32) -> Option<f32> {
+        ZOC_SHARE.with(|z| {
+            let z = z.borrow();
+            let share = z.as_ref().filter(|share| std::ptr::eq(share.state, &self.s))?;
+            share.city_threats.iter().find(|e| e.0 == index).map(|e| e.1)
+        })
+    }
+
+    /// Keep a tile's city threat level for the rest of the active [`ZocScope`], if there is one for this state.
+    pub(crate) fn share_city_threat(&self, index: i32, level: f32) {
+        ZOC_SHARE.with(|z| {
+            if let Some(share) = z.borrow_mut().as_mut().filter(|share| std::ptr::eq(share.state, &self.s)) {
+                share.city_threats.push((index, level));
+            }
+        });
     }
 
     /// [`Engine::movement_terrain_list`] from the active [`ZocScope`]; `None` outside one for this state.

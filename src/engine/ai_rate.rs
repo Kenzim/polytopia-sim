@@ -268,9 +268,22 @@ impl Engine {
     /// Threat level of a city tile.
     pub fn city_threat_level(&self, at: Wc) -> f32 {
         let Some(tile) = self.tile(at) else { return 0.0 };
+        // The level depends on the tile, the units around it and the fog: worked out once per tile while the
+        // position is shared.
+        if let Some(level) = self.shared_city_threat(tile.index) {
+            return level;
+        }
+        let level = self.city_threat_level_of(tile);
+        self.share_city_threat(tile.index, level);
+        level
+    }
+
+    /// [`Engine::city_threat_level`] of a tile, worked out from the board.
+    pub(crate) fn city_threat_level_of(&self, tile: &Tile) -> f32 {
+        let at = tile.coordinates;
         let is_city = tile.improvement == improvement::CITY;
         let owner = tile.owner;
-        let mut units = Vec::new();
+        let mut units = Vec::with_capacity(16);
         for c in self.area_iter(at, 3) {
             let Some(t) = self.tile(c) else { continue };
             let explored = self.is_explored(owner, t.index as usize);
@@ -341,8 +354,7 @@ impl Engine {
     /// Position score for missions.
     fn position_score_for_missions(&self, player: u8, here: Wc, unit: &UnitState) -> f32 {
         let ai = self.ai(player);
-        let mut list = Vec::new();
-        for m in &ai.missions {
+        let missions = ai.missions.iter().map(|m| {
             let can_capture = if m.kind == score::MissionType::Capture as i32 {
                 self.can_capture_ex(unit, m.tile, true, false)
             } else {
@@ -355,7 +367,7 @@ impl Engine {
                     self.s.current_command, unit.id, here.x, here.y, m.tile.x, m.tile.y, m.kind, m.score, can_capture
                 );
             }
-            list.push((
+            (
                 score::Mission {
                     kind: if m.kind == 1 { score::MissionType::Capture } else { score::MissionType::None },
                     tile: m.tile,
@@ -363,9 +375,9 @@ impl Engine {
                 },
                 manhattan,
                 can_capture,
-            ));
-        }
-        score::get_position_score_for_missions(here, &list)
+            )
+        });
+        score::position_score_for_missions(here, missions)
     }
 
     /// Position score for an improvement.
@@ -414,6 +426,33 @@ impl Engine {
         self.rate_position_unit(player, unit, at, can_attack)
     }
 
+    /// The tiles around `at` as `score::rate_position` wants them for `player`, added to `out`. They depend on the
+    /// board, the fog and the relations between players, not on the unit the position is rated for.
+    pub(crate) fn position_neighbors(&self, player: u8, at: Wc, out: &mut Vec<PositionNeighbor>) {
+        for n in self.area_iter(at, 1) {
+            let Some(nt) = self.tile(n) else { continue };
+            let explored = self.is_explored(player, nt.index as usize);
+            let unit_here = if explored { self.visible_unit_for(n, player) } else { None };
+            let nu = unit_here.map(|u| {
+                let same_owner = u.owner == player;
+                let at_peace = !same_owner && self.at_peace(player, u.owner);
+                // `score::rate_position` reads `detecting_hidden` only for own or at-peace units and `battle` only
+                // for the others, so each is computed only where it is read (both are pure queries).
+                let friendly = same_owner || at_peace;
+                PositionNeighborUnit {
+                    same_owner,
+                    at_peace,
+                    detecting_hidden: friendly && self.is_detecting_hidden(u),
+                    has_freeze_area: self.has_ability(u, unit_ability::FREEZE_AREA),
+                    tile_freezable: self.is_freezable(n, player),
+                    has_convert: self.has_ability(u, unit_ability::CONVERT),
+                    battle: if friendly { RateBattleInput::UNUSED } else { self.rate_battle_input(u, at) },
+                }
+            });
+            out.push(PositionNeighbor { explored, unit: nu });
+        }
+    }
+
     /// Rate a position for a unit object (real or hypothetical).
     pub fn rate_position_unit(&self, player: u8, unit: &UnitState, at: Wc, can_attack: bool) -> f32 {
         let Some(tile) = self.tile(at).copied() else { return 0.0 };
@@ -438,28 +477,10 @@ impl Engine {
         } else {
             Vec::new()
         };
-        let mut neighbors = Vec::new();
-        for n in self.area_iter(at, 1) {
-            let Some(nt) = self.tile(n) else { continue };
-            let explored = self.is_explored(player, nt.index as usize);
-            let unit_here = if explored { self.visible_unit_for(n, player) } else { None };
-            let nu = unit_here.map(|u| {
-                let same_owner = u.owner == player;
-                let at_peace = !same_owner && self.at_peace(player, u.owner);
-                // `score::rate_position` reads `detecting_hidden` only for own or at-peace units and `battle` only
-                // for the others, so each is computed only where it is read (both are pure queries).
-                let friendly = same_owner || at_peace;
-                PositionNeighborUnit {
-                    same_owner,
-                    at_peace,
-                    detecting_hidden: friendly && self.is_detecting_hidden(u),
-                    has_freeze_area: self.has_ability(u, unit_ability::FREEZE_AREA),
-                    tile_freezable: self.is_freezable(n, player),
-                    has_convert: self.has_ability(u, unit_ability::CONVERT),
-                    battle: if friendly { RateBattleInput::UNUSED } else { self.rate_battle_input(u, at) },
-                }
-            });
-            neighbors.push(PositionNeighbor { explored, unit: nu });
+        let mut neighbors = Vec::with_capacity(8);
+        if !self.shared_position_neighbors(player, tile.index, &mut neighbors) {
+            self.position_neighbors(player, at, &mut neighbors);
+            self.share_position_neighbors(player, tile.index, &neighbors);
         }
         let at_war_owner = owner != 0 && owner != player && !peace_owner;
         let hate = if at_war_owner { self.aggression(player, owner) } else { 0 };
@@ -534,15 +555,15 @@ impl Engine {
     pub fn rate_battle_input(&self, attacker: &UnitState, defender_at: Wc) -> RateBattleInput {
         let defender = self.unit_at(defender_at);
         let tile = self.tile(defender_at);
-        let (attack_damage, retaliation_damage) = match defender {
+        let (attack_damage, retaliation_damage, defender_defence) = match defender {
             Some(d) => {
                 let ac = self.combat_unit(attacker);
                 let dc = self.combat_unit(d);
                 let q = self.battle_damage_query(attacker, d);
                 let r = get_battle_results(&ac, &dc, &q);
-                (r.attack_damage, r.retaliation_damage)
+                (r.attack_damage, r.retaliation_damage, dc.defence)
             }
-            None => (0, 0),
+            None => (0, 0, 0),
         };
         let atk_info = self.unit_info(attacker);
         let def_info = defender.and_then(|d| self.unit_info(d));
@@ -558,7 +579,7 @@ impl Engine {
             attacker_cost: def_info.map(|i| i.data.cost).unwrap_or(0),
             attacker_max_health: self.max_health(attacker),
             defender_health: defender.map(|d| i32::from(d.health)).unwrap_or(0),
-            defender_defence: defender.map(|d| self.combat_unit(d).defence).unwrap_or(0),
+            defender_defence,
             attacker_data_has_poison: atk_info.is_some_and(|i| i.abilities.contains(&unit_ability::POISON)),
             attacker_data_has_eat: atk_info.is_some_and(|i| i.abilities.contains(&unit_ability::EAT)),
             attacker_data_has_persist: atk_info.is_some_and(|i| i.abilities.contains(&unit_ability::PERSIST)),

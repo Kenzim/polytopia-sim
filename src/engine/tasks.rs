@@ -233,21 +233,29 @@ impl Engine {
         }
     }
 
-    pub fn tasks_after_connection_change(&mut self, player: u8, newly_connected: bool) {
-        if newly_connected {
-            self.enable_task(player, TaskKind::Network);
-        }
+    /// The Network task check that follows a city's connection flag being set: each connecting action runs it, so the
+    /// count includes the cities whose changes have not run yet. The task is complete at 5 connected cities, the
+    /// capital not counted.
+    pub fn check_network(&mut self, player: u8) {
         if self.live_task(player, TaskKind::Network) {
             let start = self.player(player).map(|p| p.start_tile);
             let n = self
                 .city_tiles(player)
                 .iter()
                 .filter(|c| Some(**c) != start)
-                .filter(|c| self.improvement_rt(**c).is_some_and(|r| r.connected_to_capital_of_player != 0))
+                .filter(|c| self.improvement_rt(**c).is_some_and(|r| r.connected_to_capital_of_player == player))
                 .count();
             if n >= 5 {
                 self.complete_task(player, TaskKind::Network);
             }
+        }
+    }
+
+    /// A disband refund is paid as one currency increase action per star, and each one runs the Wealth check, so a
+    /// refund that raises the player's stars gets the same check as any other income.
+    pub(super) fn check_wealth_after_refund(&mut self, player: u8, before: i32) {
+        if self.player(player).is_some_and(|p| p.currency > before) {
+            self.check_wealth(player);
         }
     }
 

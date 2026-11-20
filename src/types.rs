@@ -385,6 +385,8 @@ pub enum CityReward {
     TutorialExplorer = 100,
 }
 
+/// A city, village or building on a tile. [`GameState`]'s `clone` copies the improvements as a block of bytes and
+/// clones only those with rewards.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub struct ImprovementRuntime {
     pub tile: i32,
@@ -425,6 +427,11 @@ enum ExplorersRepr {
 impl Explorers {
     /// The most ids kept without a heap allocation.
     pub const INLINE: usize = 14;
+
+    /// The ids are held in place: the value owns no heap memory.
+    fn is_inline(&self) -> bool {
+        matches!(self.0, ExplorersRepr::Inline { .. })
+    }
 
     pub const fn new() -> Self {
         Self(ExplorersRepr::Inline { len: 0, ids: [0; Self::INLINE] })
@@ -578,7 +585,8 @@ impl<'a> IntoIterator for &'a Explorers {
 
 pub const UNIT_CTOR_HEALTH: u16 = 10;
 
-/// One unit on the board.
+/// One unit on the board. [`GameState`]'s `clone` copies the units as a block of bytes and clones only those
+/// carrying a passenger.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UnitState {
     pub id: u32,
@@ -741,7 +749,7 @@ impl Default for GameSettings {
 
 /// The whole state of a game: map, players, units, research, diplomacy, fog and settings.
 /// [`Engine`](crate::Engine) wraps it with the rule tables and the turn flow.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct GameState {
     /// The game version the rules follow.
     pub version: i32,
@@ -783,6 +791,140 @@ pub struct UnitGrid {
 }
 
 const GRID_NONE: u16 = u16::MAX;
+
+/// A copy of `items`: the whole slice as one block of bytes, then a real clone over each item `plain` rejects.
+///
+/// # Safety
+/// `plain` may only accept values that own no heap memory and have no `Drop` effect, so that their bytes are a
+/// complete, independent copy.
+unsafe fn clone_block<T: Clone>(items: &[T], plain: impl Fn(&T) -> bool) -> Vec<T> {
+    let mut out: Vec<T> = Vec::with_capacity(items.len());
+    // SAFETY: the source and the new buffer both hold `items.len()` values of `T` and do not overlap. The bytes of a
+    // plain item are a valid value that shares nothing with the source. The bytes of any other item are overwritten
+    // by its clone without being read or dropped, and the length is set only after the last of them, so a panic in
+    // `clone` leaves a vector of length 0 that frees its buffer and drops nothing.
+    unsafe {
+        std::ptr::copy_nonoverlapping(items.as_ptr(), out.as_mut_ptr(), items.len());
+        for (i, item) in items.iter().enumerate() {
+            if !plain(item) {
+                out.as_mut_ptr().add(i).write(item.clone());
+            }
+        }
+        out.set_len(items.len());
+    }
+    out
+}
+
+/// Takes only values that are `Copy`: the compiler's proof that a field owns nothing.
+fn plain<T: Copy>(_: T) {}
+
+/// The unit owns no heap memory. Every field is named here, so a new one has to be shown to be plain as well.
+fn unit_is_plain(unit: &UnitState) -> bool {
+    let UnitState {
+        id,
+        leader,
+        follower,
+        owner,
+        birth_climate,
+        type_idx,
+        previous_turn_end,
+        coordinates,
+        home,
+        passenger,
+        health,
+        promotion,
+        xp,
+        moved,
+        attacked,
+        created_turn,
+        frozen,
+        poisoned,
+        boosted,
+        invisible,
+        bubble,
+        petrified,
+        swift,
+        double_ready,
+        charmed,
+        temporary_explorer,
+        direction,
+    } = unit;
+    plain((*id, *leader, *follower, *owner, *birth_climate, *type_idx, *previous_turn_end, *coordinates, *home));
+    plain((*health, *promotion, *xp, *moved, *attacked, *created_turn, *frozen, *poisoned, *boosted, *invisible));
+    plain((*bubble, *petrified, *swift, *double_ready, *charmed, *temporary_explorer, *direction));
+    passenger.is_none()
+}
+
+/// The improvement owns no heap memory (a vector without capacity owns none). Every field is named here, so a new
+/// one has to be shown to be plain as well.
+fn improvement_is_plain(improvement: &ImprovementRuntime) -> bool {
+    let ImprovementRuntime {
+        tile,
+        owner,
+        founder,
+        level,
+        founded,
+        xp,
+        population,
+        production,
+        base_score,
+        border_size,
+        upgrade,
+        connected_to_capital_of_player,
+        rewards,
+        decomposing,
+        robbed,
+    } = improvement;
+    plain((
+        *tile,
+        *owner,
+        *founder,
+        *level,
+        *founded,
+        *xp,
+        *population,
+        *production,
+        *base_score,
+        *border_size,
+        *upgrade,
+    ));
+    plain((*connected_to_capital_of_player, *decomposing, *robbed));
+    rewards.capacity() == 0
+}
+
+/// The tile's fog entry owns no heap memory: its explorer list is held in place.
+fn fog_is_plain(fog: &TileExplorers) -> bool {
+    let TileExplorers { tile, explorers } = fog;
+    plain(*tile);
+    explorers.is_inline()
+}
+
+impl Clone for GameState {
+    fn clone(&self) -> Self {
+        Self {
+            version: self.version,
+            seed: self.seed,
+            map: self.map.clone(),
+            players: self.players.clone(),
+            player_runtime: self.player_runtime.clone(),
+            // SAFETY: each test accepts only values that own no heap memory.
+            units: unsafe { clone_block(&self.units, unit_is_plain) },
+            improvements: unsafe { clone_block(&self.improvements, improvement_is_plain) },
+            tech: self.tech.clone(),
+            diplomacy: self.diplomacy.clone(),
+            fog: unsafe { clone_block(&self.fog, fog_is_plain) },
+            tasks: self.tasks.clone(),
+            current_player_index: self.current_player_index,
+            current_turn: self.current_turn,
+            current_unit_id: self.current_unit_id,
+            current_state: self.current_state,
+            current_command: self.current_command,
+            settings: self.settings,
+            city_names: self.city_names.clone(),
+            unit_grid: self.unit_grid.clone(),
+        }
+    }
+}
 
 impl Clone for UnitGrid {
     fn clone(&self) -> Self {

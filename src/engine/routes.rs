@@ -381,7 +381,6 @@ impl Engine {
             );
         }
         let Some(capital) = self.player(player).map(|p| p.start_tile) else { return };
-        let mut newly = false;
         // Retail queues one action per city, in city order, on the game's action stack, which runs last in, first out:
         // the last city's change runs first. The order matters when a population change raises a city reward, which
         // holds the changes behind it.
@@ -399,6 +398,8 @@ impl Engine {
         for (city, connect, current) in ops.into_iter().rev() {
             if connect {
                 if current == 0 {
+                    // The connect action enables the Network task before it queues the population changes.
+                    self.enable_task(player, crate::TaskKind::Network);
                     // Retail pushes the capital's population change, then the city's, onto its action stack, which runs
                     // last in, first out: the city's point comes first, and its level-up holds the capital's.
                     self.add_population(city, 1);
@@ -409,10 +410,10 @@ impl Engine {
                         self.add_population(old, -1);
                     }
                 }
-                newly = true;
                 if let Some(rt) = self.improvement_rt_mut(city) {
                     rt.connected_to_capital_of_player = player;
                 }
+                self.check_network(player);
             } else {
                 // A captured city only loses its own point; the old capital keeps its bonus (replay-verified).
                 // On a disconnect the capital it was connected to and the city each lose one.
@@ -427,7 +428,6 @@ impl Engine {
                 }
             }
         }
-        self.tasks_after_connection_change(player, newly);
     }
 
     /// The route update followed by the city-connection update for `player`.

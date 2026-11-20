@@ -1,11 +1,11 @@
-//! The aquapult's Drench: an attack on a tile without a unit floods the tile.
+//! The aquapult's Drench: an attack floods the target tile.
 //!
 //! A unit with Drench can target any floodable tile in range, a unit on it or not. With no unit there the attack
 //! turns the unit to the tile, floods it (and spends the unit), as long as the tile is floodable: land that is not a
-//! mountain and not flooded yet. A unit on the tile is attacked as usual and the tile stays dry.
+//! mountain and not flooded yet. A unit on the tile is attacked as usual and the tile is flooded as well.
 //!
-//! Evidence from the games: no human game has an aquapult, so the rule rests on the retail attack code alone (the
-//! drench branch of the attack action, which floods only when the target tile holds no unit).
+//! Evidence from the games: retail's attack action queues the flood for a Drench attacker after the unit-on-tile
+//! branches too (corpus games c234bae1 and fe8b64e2: the server has the target of a killing aquapult attack flooded).
 use polytopia_sim::engine::{Command, Engine};
 use polytopia_sim::json::Json;
 use polytopia_sim::WorldCoordinates as Wc;
@@ -93,9 +93,9 @@ fn mountains_water_and_flooded_tiles_are_not_targets() {
 }
 
 #[test]
-fn an_enemy_on_the_tile_is_attacked_and_the_tile_stays_dry() {
+fn an_enemy_on_the_tile_is_attacked_and_the_tile_floods_too() {
     let mut e = board(&[], Some((5, 1)));
     e.apply(attack(wc(5, 1))).expect("the attack is legal");
     assert!(e.unit(2).is_none_or(|u| u.health < 100), "the warrior was hit");
-    assert!(!e.has_effect(wc(5, 1), FLOODED));
+    assert!(e.has_effect(wc(5, 1), FLOODED));
 }
